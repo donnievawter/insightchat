@@ -1,0 +1,28 @@
+version: '3.8'
+
+# Optional local Ollama service for development
+# Use with: docker-compose -f docker-compose.yml -f docker-compose.local.yml up
+# Only use if you want to run Ollama locally for testing
+
+services:
+  insightchat:
+    environment:
+      - OLLAMA_URL=http://ollama:11434/api/chat
+
+  # Local development overrides for docker-compose
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama-local
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    restart: unless-stopped
+    networks:
+      - insightchat-network
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+
+volumes:
+  ollama-data:
+    driver: local

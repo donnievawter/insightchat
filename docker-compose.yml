@@ -1,0 +1,32 @@
+services:
+  insightchat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: insightchat
+    ports:
+      - "5030:5030"
+    environment:
+      - FLASK_DEBUG=False
+      - OLLAMA_URL=${OLLAMA_URL:-http://host.docker.internal:11434/api/chat}
+      - RAG_API_URL=${RAG_API_URL:-}
+      - FLASK_SECRET_KEY=${FLASK_SECRET_KEY:-insecure-dev-key-change-this}
+    volumes:
+      # Mount the .env file if it exists
+      - ./.env:/app/.env:ro
+    restart: unless-stopped
+    networks:
+      - insightchat-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5030/chat')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Note: Ollama runs externally on a high-memory Mac
+  # No Ollama service needed in this compose file
+
+networks:
+  insightchat-network:
+    driver: bridge

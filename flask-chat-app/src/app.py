@@ -39,4 +39,9 @@ def index():
     return redirect(url_for('chat.chat'))
 
 if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=5030, debug=True)
+    # Get configuration from environment
+    host = os.getenv("FLASK_HOST", "0.0.0.0")
+    port = int(os.getenv("FLASK_PORT", "5030"))
+    debug = os.getenv("FLASK_DEBUG", "True").lower() in ("true", "1", "yes")
+    
+    app.run(host=host, port=port, debug=debug)

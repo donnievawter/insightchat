@@ -83,6 +83,46 @@ def fetch_repo_chunks(prompt, k=None, rag_api_url=None):
         print(f"DEBUG: RAG unexpected error: {e}")
         return None
 
+def get_available_models(ollama_base_url=None):
+    """Fetch available models from Ollama API"""
+    if not ollama_base_url:
+        ollama_base_url = os.getenv("OLLAMA_URL", "http://localhost:11434")
+        # Remove /api/chat if it's there, we need just the base URL
+        ollama_base_url = ollama_base_url.replace("/api/chat", "")
+    
+    try:
+        tags_url = f"{ollama_base_url.rstrip('/')}/api/tags"
+        print(f"DEBUG: Fetching models from {tags_url}")
+        
+        response = requests.get(tags_url, timeout=10)
+        response.raise_for_status()
+        
+        data = response.json()
+        models = []
+        
+        if "models" in data:
+            for model_info in data["models"]:
+                model_name = model_info.get("name", "")
+                # Skip embedding models
+                if "embed" not in model_name.lower():
+                    models.append({
+                        "name": model_name,
+                        "size": model_info.get("size", 0),
+                        "family": model_info.get("details", {}).get("family", ""),
+                        "parameter_size": model_info.get("details", {}).get("parameter_size", "")
+                    })
+        
+        print(f"DEBUG: Found {len(models)} available models")
+        return models
+        
+    except Exception as e:
+        print(f"DEBUG: Error fetching models: {e}")
+        # Return fallback models if API fails
+        return [
+            {"name": "llama3.2:latest", "family": "llama", "parameter_size": "3B"},
+            {"name": "llama2:latest", "family": "llama", "parameter_size": "7B"}
+        ]
+
 def prompt_model(model, prompt, history=None, system_prompt="You are a helpful assistant."):
     """Send a prompt to Ollama and get the response"""
     ollama_url = os.getenv("OLLAMA_URL", "http://localhost:11434/api/chat")

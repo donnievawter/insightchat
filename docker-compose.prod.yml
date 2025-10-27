@@ -1,0 +1,17 @@
+# Production overrides for docker-compose
+# Use with: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up
+
+services:
+  insightchat:
+    environment:
+      - FLASK_DEBUG=False
+      - FLASK_ENV=production
+    restart: always
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Note: Ollama runs externally on dedicated Mac hardware
+  # Configure OLLAMA_URL to point to your external Ollama instance

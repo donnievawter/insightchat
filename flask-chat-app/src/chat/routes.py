@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, session, redirect
 import os
-from .utils import prompt_model, fetch_repo_chunks
+from .utils import prompt_model, fetch_repo_chunks, get_available_models
 
 chat_bp = Blueprint('chat', __name__)
 
@@ -12,7 +12,17 @@ def chat():
             session["message_history"] = []
         system_prompt = request.args.get("context", "You are a helpful assistant.")
         session["system_prompt"] = system_prompt
-        return render_template("chat.html", message_history=session["message_history"])
+        
+        # Get available models from Ollama
+        available_models = get_available_models()
+        current_model = session.get("model", available_models[0]["name"] if available_models else "llama2:latest")
+        current_use_repo_docs = session.get("use_repo_docs", False)
+        
+        return render_template("chat.html", 
+                             message_history=session["message_history"],
+                             available_models=available_models,
+                             model=current_model,
+                             use_repo_docs=current_use_repo_docs)
 
     if request.method == "POST":
         # Get form data
@@ -88,8 +98,12 @@ def chat():
             session["message_history"].append({"role": "assistant", "content": error_msg})
             session.modified = True
 
+        # Get available models for the template
+        available_models = get_available_models()
+        
         return render_template("chat.html", 
                              message_history=session["message_history"],
+                             available_models=available_models,
                              model=model,
                              use_repo_docs=use_repo_docs)
 
