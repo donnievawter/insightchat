@@ -2,45 +2,45 @@
 
 # Development commands
 build:
-	docker-compose build
+	docker compose build
 
 up:
-	docker-compose up -d
+	docker compose up -d
 
 dev:
-	docker-compose up
+	docker compose up
 
 down:
-	docker-compose down
+	docker compose down
 
 logs:
-	docker-compose logs -f insightchat
+	docker compose logs -f insightchat
 
 logs-all:
-	docker-compose logs -f
+	docker compose logs -f
 
 # Production commands
 prod:
-	docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+	docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 
 prod-build:
-	docker-compose -f docker-compose.yml -f docker-compose.prod.yml build
+	docker compose -f docker-compose.yml -f docker-compose.prod.yml build
 
 prod-down:
-	docker-compose -f docker-compose.yml -f docker-compose.prod.yml down
+	docker compose -f docker-compose.yml -f docker-compose.prod.yml down
 
 # Utility commands
 shell:
-	docker-compose exec insightchat /bin/bash
+	docker compose exec insightchat /bin/bash
 
 test-rag:
-	docker-compose exec insightchat uv run test_rag.py
+	docker compose exec insightchat uv run test_rag.py
 
 restart:
-	docker-compose restart insightchat
+	docker compose restart insightchat
 
 clean:
-	docker-compose down -v
+	docker compose down -v
 	docker system prune -f
 
 # Setup commands
