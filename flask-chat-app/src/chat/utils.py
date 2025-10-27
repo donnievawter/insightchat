@@ -1,4 +1,10 @@
+import requests
+import os
+import html
+from textwrap import shorten
+
 def clean_markdown(text):
+    """Clean up markdown formatting"""
     text = text.replace("<p>```", "```").replace("```</p>", "```")
     return text
 
@@ -20,35 +26,67 @@ def build_chat_payload(model, prompt, prior_messages=None, system_prompt="Respon
     return payload, messages
 
 def fetch_repo_chunks(prompt, k=None, rag_api_url=None):
-    k = 5  # Default value
+    """Fetch relevant document chunks from RAG API for context"""
+    k = k or 5  # Default value
     if not rag_api_url:
+        print("DEBUG: No RAG API URL provided")
         return None
 
     try:
-        resp = requests.post(
-            f"{rag_api_url.rstrip('/')}/query",
-            json={"prompt": prompt, "k": k},
-            timeout=6
-        )
+        url = f"{rag_api_url.rstrip('/')}/query"
+        payload = {"prompt": prompt, "k": k}
+        print(f"DEBUG: Making RAG request to {url} with payload: {payload}")
+        
+        resp = requests.post(url, json=payload, timeout=6)
+        print(f"DEBUG: RAG response status: {resp.status_code}")
+        
         resp.raise_for_status()
         data = resp.json()
+        print(f"DEBUG: RAG response data keys: {list(data.keys()) if data else 'None'}")
+        
         results = data.get("results", [])
-        parts = []
-        for r in results:
-            content = r.get("content", "")
-            content = html.escape(content)
-            content = shorten(content, width=800, placeholder=" …")
-            src = r.get("metadata", {}).get("source", "unknown")
-            parts.append(f"---\nSource: {src}\n{content}\n")
-        if not parts:
+        print(f"DEBUG: Number of RAG results: {len(results)}")
+        
+        if not results:
+            print("DEBUG: No results returned from RAG API")
             return None
+            
+        parts = []
+        for i, r in enumerate(results):
+            content = r.get("content", "")
+            if content:
+                content = html.escape(content)
+                content = shorten(content, width=800, placeholder=" …")
+                src = r.get("metadata", {}).get("source", "unknown")
+                parts.append(f"---\nSource: {src}\n{content}\n")
+                print(f"DEBUG: Processed RAG result {i+1}: {len(content)} chars from {src}")
+        
+        if not parts:
+            print("DEBUG: No valid content in RAG results")
+            return None
+            
         joined = "Use the following retrieved document excerpts to answer the user query (do not cite unless asked):\n\n" + "\n".join(parts)
-        return shorten(joined, width=4000, placeholder="\n[truncated]")
+        final_context = shorten(joined, width=4000, placeholder="\n[truncated]")
+        print(f"DEBUG: Final context length: {len(final_context)} chars")
+        return final_context
+        
+    except requests.exceptions.ConnectionError as e:
+        print(f"DEBUG: RAG connection error: {e}")
+        return None
+    except requests.exceptions.Timeout as e:
+        print(f"DEBUG: RAG timeout error: {e}")
+        return None
+    except requests.exceptions.HTTPError as e:
+        print(f"DEBUG: RAG HTTP error: {e}")
+        return None
     except Exception as e:
-        print(f"fetch_repo_chunks error: {e}")
+        print(f"DEBUG: RAG unexpected error: {e}")
         return None
 
-def prompt_model(model, prompt, history=None, ollama_url=None, system_prompt="Respond to queries in English"):
+def prompt_model(model, prompt, history=None, system_prompt="You are a helpful assistant."):
+    """Send a prompt to Ollama and get the response"""
+    ollama_url = os.getenv("OLLAMA_URL", "http://localhost:11434/api/chat")
+    
     payload, updated_history = build_chat_payload(
         model, prompt,
         prior_messages=history,
@@ -58,18 +96,11 @@ def prompt_model(model, prompt, history=None, ollama_url=None, system_prompt="Re
 
     try:
         timeout = 120
-        response = requests.post(f"{ollama_url}", json=payload, timeout=timeout)
+        response = requests.post(ollama_url, json=payload, timeout=timeout)
         response.raise_for_status()
         content = response.json().get("message", {}).get("content", "").strip()
     except Exception as e:
-        content = f"Error: {str(e)}"
+        content = f"Error communicating with Ollama: {str(e)}"
 
-    non_system_history = [m for m in updated_history if m.get("role") != "system"]
-
-    return {
-        "model": model,
-        "timestamp": datetime.datetime.now().strftime("%Y:%m:%d %H:%M:%S"),
-        "prompt": prompt,
-        "history": non_system_history,
-        "response": content
-    }, updated_history
+    # Return just the response content and updated history
+    return content, updated_history

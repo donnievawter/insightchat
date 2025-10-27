@@ -1,6 +1,6 @@
-# Flask Chat Application
+# InsightChat - AI Chat Application with RAG
 
-This project is a simple chat application built using Flask. It provides a user-friendly interface for real-time chat interactions, allowing users to send and receive messages seamlessly.
+A clean, simple Flask-based chat application that integrates with Ollama for AI conversations and supports optional RAG (Retrieval Augmented Generation) for enhanced context.
 
 ## Project Structure
 
@@ -34,18 +34,21 @@ flask-chat-app
 ## Installation
 
 1. Clone the repository:
+
    ```
    git clone <repository-url>
    cd flask-chat-app
    ```
 
 2. Create a virtual environment:
+
    ```
    python -m venv venv
    source venv/bin/activate  # On Windows use `venv\Scripts\activate`
    ```
 
 3. Install the required packages:
+
    ```
    pip install -r requirements.txt
    ```

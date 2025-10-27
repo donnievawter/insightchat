@@ -1,17 +1,42 @@
-from flask import Flask, render_template, request, session
+from flask import Flask, redirect, url_for
 import os
-import uuid
-import hashlib
+from pathlib import Path
+from dotenv import load_dotenv
 from chat.routes import chat_bp
 
-app = Flask(__name__)
-app.secret_key = os.getenv("FLASK_SECRET_KEY", "your_secret_key")
+# Get the path to the flask-chat-app directory (parent of src)
+app_root = Path(__file__).parent.parent
+# Get the project root (parent of flask-chat-app)
+project_root = app_root.parent
+
+# Load environment variables from .env file (check both locations)
+env_paths = [
+    project_root / ".env",  # Project root
+    app_root / ".env"       # flask-chat-app directory
+]
+
+env_loaded = False
+for env_path in env_paths:
+    if env_path.exists():
+        load_dotenv(env_path)
+        print(f"✓ Loaded environment variables from {env_path}")
+        env_loaded = True
+        break
+
+if not env_loaded:
+    print(f"⚠️  No .env file found in {[str(p) for p in env_paths]}")
+    print("   Create one by copying .env.example to .env")
+
+app = Flask(__name__, 
+           template_folder=str(app_root / "templates"),
+           static_folder=str(Path(__file__).parent / "static"))
+app.secret_key = os.getenv("FLASK_SECRET_KEY", "dev-secret-key-change-in-production")
 
 app.register_blueprint(chat_bp)
 
 @app.route("/")
 def index():
-    return render_template("chat.html")
+    return redirect(url_for('chat.chat'))
 
 if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=5050, debug=True)
+    app.run(host='0.0.0.0', port=5030, debug=True)

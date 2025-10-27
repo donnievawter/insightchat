@@ -1,57 +1,97 @@
 from flask import Blueprint, render_template, request, session, redirect
-import uuid
 import os
-import hashlib
-from .utils import fetch_repo_chunks, prompt_model, clean_markdown, keyword_file, describe_file
+from .utils import prompt_model, fetch_repo_chunks
 
 chat_bp = Blueprint('chat', __name__)
 
 @chat_bp.route("/chat", methods=["GET", "POST"])
 def chat():
     if request.method == "GET":
-        session.clear()
-        session["system_prompt"] = request.args.get("context", "Respond to queries in English")
-        return render_template("chat.html")
+        # Initialize session if needed
+        if "message_history" not in session:
+            session["message_history"] = []
+        system_prompt = request.args.get("context", "You are a helpful assistant.")
+        session["system_prompt"] = system_prompt
+        return render_template("chat.html", message_history=session["message_history"])
 
     if request.method == "POST":
-        model = request.form.get("model")
+        # Get form data
+        model = request.form.get("model", "llama3.2:latest")
         prompt = request.form.get("prompt", "").strip()
         use_repo_docs = bool(request.form.get("use_repo_docs"))
+        
+        if not prompt:
+            return render_template("chat.html", 
+                                 message_history=session.get("message_history", []),
+                                 error="Please enter a message")
+
+        # Initialize message history if not exists
+        if "message_history" not in session:
+            session["message_history"] = []
+
+        # Store model and RAG preference in session
+        session["model"] = model
         session["use_repo_docs"] = use_repo_docs
 
-        job_id = str(uuid.uuid4())
-        session["job_id"] = job_id
+        # Add user message to history
+        session["message_history"].append({"role": "user", "content": prompt})
 
+        # Fetch context from RAG if requested
+        context_text = None
         if use_repo_docs:
-            k = 5  # Default value for k
+            k = 5  # Default number of chunks
             rag_api_url = os.getenv("RAG_API_URL")
+            print(f"DEBUG: RAG enabled, API URL: {rag_api_url}")  # Debug log
+            
+            if not rag_api_url:
+                print("DEBUG: RAG_API_URL not set in environment variables")
+                session["message_history"].append({
+                    "role": "assistant", 
+                    "content": "⚠️ RAG is enabled but RAG_API_URL environment variable is not set. Please configure it in your .env file."
+                })
+                session.modified = True
+                return render_template("chat.html", 
+                                     message_history=session["message_history"],
+                                     model=model,
+                                     use_repo_docs=use_repo_docs)
+            
             context_text = fetch_repo_chunks(prompt, k=k, rag_api_url=rag_api_url)
+            print(f"DEBUG: RAG context retrieved: {bool(context_text)}")  # Debug log
+            
             if context_text:
-                session["message_history"].insert(0, {"role": "system", "content": context_text})
-
-        active_model = session.get("model", model)
-        session["model"] = active_model
-
-        image = request.files.get("file")
-        if image:
-            filename_hash = hashlib.md5(image.read()).hexdigest() + "_" + image.filename
-            static_dir = os.path.join(os.path.dirname(__file__), "static", "uploads")
-            os.makedirs(static_dir, exist_ok=True)
-            image_path = os.path.join(static_dir, filename_hash)
-            image.seek(0)
-            image.save(image_path)
-            session["image_path"] = filename_hash
-
-            result = describe_file(image_path, prompt=prompt or "Describe the image in detail", model=active_model, job_id=job_id)
-            response_text = clean_markdown(result["description"])
-            session["message_history"].append({"role": "assistant", "content": response_text})
-
+                print(f"DEBUG: Context length: {len(context_text)} chars")  # Debug log
+                # Insert context as system message temporarily for this query
+                temp_history = [{"role": "system", "content": context_text}] + session["message_history"]
+            else:
+                print("DEBUG: No context retrieved from RAG")
+                temp_history = session["message_history"]
         else:
-            response_data = prompt_model(model=active_model, prompt=prompt, history=session.get("message_history", []))
-            response_text = clean_markdown(response_data["response"])
-            session["message_history"].append({"role": "assistant", "content": response_text})
+            print("DEBUG: RAG not enabled for this query")
+            temp_history = session["message_history"]
 
-        return render_template("chat.html", result=response_text, image_path=session.get("image_path"))
+        # Get response from Ollama
+        try:
+            system_prompt = session.get("system_prompt", "You are a helpful assistant.")
+            response_text, _ = prompt_model(
+                model=model, 
+                prompt=prompt, 
+                history=temp_history[:-1],  # Exclude the current user message since it's added in prompt_model
+                system_prompt=system_prompt
+            )
+            
+            # Add assistant response to permanent history
+            session["message_history"].append({"role": "assistant", "content": response_text})
+            session.modified = True  # Mark session as modified
+            
+        except Exception as e:
+            error_msg = f"Error: {str(e)}"
+            session["message_history"].append({"role": "assistant", "content": error_msg})
+            session.modified = True
+
+        return render_template("chat.html", 
+                             message_history=session["message_history"],
+                             model=model,
+                             use_repo_docs=use_repo_docs)
 
 @chat_bp.route("/reset", methods=["POST"])
 def reset():
