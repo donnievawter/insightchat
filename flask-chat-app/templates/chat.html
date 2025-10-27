@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat Application</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            <h1>Chat</h1>
+        </div>
+        <div class="chat-messages" id="chat-messages">
+            {% for message in message_history %}
+                <div class="message {{ message.role }}">
+                    <span class="message-role">{{ message.role }}:</span>
+                    <span class="message-content">{{ message.content }}</span>
+                </div>
+            {% endfor %}
+        </div>
+        <form id="chat-form" method="POST" action="{{ url_for('chat') }}" enctype="multipart/form-data">
+            <input type="text" name="prompt" placeholder="Type your message..." required>
+            <input type="file" name="file" accept="image/*">
+            <button type="submit">Send</button>
+        </form>
+    </div>
+    <script src="{{ url_for('static', filename='js/chat.js') }}"></script>
+</body>
+</html>
