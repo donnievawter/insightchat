@@ -61,17 +61,39 @@
     </div>
 
     <script>
-        // Auto-scroll to bottom of messages
-        const chatMessages = document.getElementById('chat-messages');
-        if (chatMessages) {
-            chatMessages.scrollTop = chatMessages.scrollHeight;
-        }
+        document.addEventListener('DOMContentLoaded', function () {
+            // Auto-scroll to bottom of messages
+            const chatMessages = document.getElementById('chat-messages');
+            if (chatMessages) {
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            }
 
-        // Focus on input field
-        const promptInput = document.querySelector('input[name="prompt"]');
-        if (promptInput) {
-            promptInput.focus();
-        }
+            // Focus on input field
+            const promptInput = document.querySelector('input[name="prompt"]');
+            if (promptInput) {
+                promptInput.focus();
+            }
+
+            // Handle form submission to disable/enable send button
+            const chatForm = document.getElementById('chat-form');
+            const sendButton = chatForm ? chatForm.querySelector('button[type="submit"]') : null;
+
+            if (chatForm && sendButton) {
+                const originalButtonText = sendButton.textContent;
+
+                chatForm.addEventListener('submit', function (e) {
+                    const message = promptInput.value.trim();
+                    if (!message) {
+                        e.preventDefault();
+                        return;
+                    }
+
+                    // Disable button and show loading state
+                    sendButton.disabled = true;
+                    sendButton.textContent = 'Sending...';
+                });
+            }
+        });
     </script>
 </body>
 

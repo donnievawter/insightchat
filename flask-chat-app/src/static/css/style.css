@@ -1,7 +1,7 @@
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     background-color: #0d1117;
-    background-image: 
+    background-image:
         radial-gradient(at 40% 20%, #1f2937 0px, transparent 50%),
         radial-gradient(at 80% 0%, #374151 0px, transparent 50%),
         radial-gradient(at 0% 50%, #1f2937 0px, transparent 50%);
@@ -104,7 +104,7 @@ body {
     overflow-y: auto;
     padding: 20px;
     background: #0d1117;
-    
+
     /* Custom scrollbar for dark theme */
 }
 
@@ -232,4 +232,17 @@ body {
 .input-row button:hover {
     transform: translateY(-1px);
     box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4);
+}
+
+.input-row button:disabled {
+    background: #4b5563;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+    opacity: 0.6;
+}
+
+.input-row button:disabled:hover {
+    transform: none;
+    box-shadow: none;
 }
