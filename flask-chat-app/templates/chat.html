@@ -48,13 +48,13 @@
                     <span class="message-role">{{ message.role.title() }}</span>
                     {% if message.role == 'assistant' and message.get('rag_chunks') %}
                     <button class="toggle-chunks-btn" onclick="toggleChunks('{{ loop.index }}')">
-                        <span id="chunks-icon-{{ loop.index }}">📄</span> 
+                        <span id="chunks-icon-{{ loop.index }}">📄</span>
                         <span id="chunks-text-{{ loop.index }}">Show Sources ({{ message.rag_chunks|length }})</span>
                     </button>
                     {% endif %}
                 </div>
                 <div class="message-content">{{ message.content | safe }}</div>
-                
+
                 {% if message.role == 'assistant' and message.get('rag_chunks') %}
                 <div class="rag-chunks" id="chunks-{{ loop.index }}" style="display: none;">
                     <div class="chunks-header">
@@ -68,9 +68,8 @@
                             {% if chunk.metadata.get('page') %}
                             <span class="chunk-page">Page {{ chunk.metadata.page }}</span>
                             {% endif %}
-                            <button class="view-doc-btn" 
-                                    data-source="{{ chunk.metadata.get('source', '') }}" 
-                                    data-start-index="{{ chunk.get('start_index', 0) }}">
+                            <button class="view-doc-btn" data-source="{{ chunk.metadata.get('source', '') }}"
+                                data-start-index="{{ chunk.get('start_index', 0) }}">
                                 View Document
                             </button>
                         </div>
@@ -78,10 +77,13 @@
                             <p>{{ chunk.content[:200] }}{% if chunk.content|length > 200 %}...{% endif %}</p>
                         </div>
                         <div class="chunk-actions">
-                            <button class="expand-chunk-btn" onclick="toggleChunkExpansion('msg{{ outer_loop.index }}_chunk{{ loop.index0 }}')">
-                                <span id="chunk-expand-msg{{ outer_loop.index }}_chunk{{ loop.index0 }}">Show More</span>
+                            <button class="expand-chunk-btn"
+                                onclick="toggleChunkExpansion('msg{{ outer_loop.index }}_chunk{{ loop.index0 }}')">
+                                <span id="chunk-expand-msg{{ outer_loop.index }}_chunk{{ loop.index0 }}">Show
+                                    More</span>
                             </button>
-                            <div class="chunk-full-content" id="chunk-full-msg{{ outer_loop.index }}_chunk{{ loop.index0 }}" style="display: none;">
+                            <div class="chunk-full-content"
+                                id="chunk-full-msg{{ outer_loop.index }}_chunk{{ loop.index0 }}" style="display: none;">
                                 <p>{{ chunk.content }}</p>
                             </div>
                         </div>
@@ -136,7 +138,7 @@
             }
 
             // Handle view document buttons
-            document.addEventListener('click', function(e) {
+            document.addEventListener('click', function (e) {
                 if (e.target.classList.contains('view-doc-btn')) {
                     const source = e.target.getAttribute('data-source');
                     const startIndex = parseInt(e.target.getAttribute('data-start-index') || '0');
@@ -150,7 +152,7 @@
             const chunksDiv = document.getElementById('chunks-' + messageIndex);
             const icon = document.getElementById('chunks-icon-' + messageIndex);
             const text = document.getElementById('chunks-text-' + messageIndex);
-            
+
             if (chunksDiv.style.display === 'none') {
                 chunksDiv.style.display = 'block';
                 icon.textContent = '📂';
@@ -166,7 +168,7 @@
         function toggleChunkExpansion(chunkIndex) {
             const fullContent = document.getElementById('chunk-full-' + chunkIndex);
             const expandBtn = document.getElementById('chunk-expand-' + chunkIndex);
-            
+
             if (fullContent && expandBtn) {
                 if (fullContent.style.display === 'none') {
                     fullContent.style.display = 'block';
@@ -183,7 +185,7 @@
             // Create modal overlay
             const overlay = document.createElement('div');
             overlay.className = 'document-viewer-overlay';
-            overlay.onclick = function(e) {
+            overlay.onclick = function (e) {
                 if (e.target === overlay) {
                     closeDocumentViewer();
                 }
@@ -230,13 +232,17 @@
             const imageExtensions = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp'];
             const textExtensions = ['txt', 'md', 'py', 'js', 'html', 'css', 'json', 'xml', 'yaml', 'yml', 'sh', 'conf', 'log'];
             const pdfExtensions = ['pdf'];
-            
+            const csvExtensions = ['csv', 'tsv'];
+
             if (imageExtensions.includes(fileExtension)) {
                 // Display image
                 displayImageDocument(source, contentElement);
             } else if (pdfExtensions.includes(fileExtension)) {
                 // Display PDF
                 displayPdfDocument(source, contentElement);
+            } else if (csvExtensions.includes(fileExtension)) {
+                // Display CSV as table
+                displayCsvDocument(source, contentElement);
             } else if (textExtensions.includes(fileExtension)) {
                 // Display as text
                 displayTextDocument(source, startIndex, contentElement);
@@ -255,7 +261,7 @@
                         <small>Source: ${escapeHtml(source)}</small>
                     </div>
                     <div style="max-width: 100%; overflow: auto;">
-                        <img src="/document?source=${encodeURIComponent(source)}" 
+                        <img src="{{ url_for('chat.get_document') }}?source=${encodeURIComponent(source)}" 
                              alt="${escapeHtml(source)}" 
                              style="max-width: 100%; height: auto; border: 1px solid #30363d; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.3);"
                              onload="this.style.display='block'" 
@@ -281,8 +287,8 @@
                         <div class="pdf-title">
                             <span class="pdf-icon">📄</span>
                             <div class="pdf-info">
-                                <div class="pdf-name">${escapeHtml(source.split('/').pop())}</div>
-                                <div class="pdf-source">Source: ${escapeHtml(source)}</div>
+                                <div class="pdf-name">${escapeHtml(decodeURIComponent(source.split('/').pop()))}</div>
+                                <div class="pdf-source">Source: ${escapeHtml(decodeURIComponent(source))}</div>
                             </div>
                         </div>
                         <div class="pdf-actions">
@@ -296,7 +302,7 @@
                     </div>
                     <div class="pdf-viewer-frame">
                         <iframe id="pdf-viewer-${Date.now()}" 
-                                src="/document?source=${encodeURIComponent(source)}" 
+                                src="{{ url_for('chat.get_document') }}?source=${encodeURIComponent(source)}" 
                                 class="pdf-iframe"
                                 onload="this.style.display='block'; this.nextElementSibling.style.display='none';"
                                 onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
@@ -318,9 +324,272 @@
             `;
         }
 
+        // Display CSV documents as tables
+        function displayCsvDocument(source, contentElement) {
+            contentElement.innerHTML = `
+                <div class="csv-document-container">
+                    <div class="csv-header">
+                        <div class="csv-title">
+                            <span class="csv-icon">📊</span>
+                            <div class="csv-info">
+                                <div class="csv-name">${escapeHtml(decodeURIComponent(source.split('/').pop()))}</div>
+                                <div class="csv-source">Source: ${escapeHtml(decodeURIComponent(source))}</div>
+                            </div>
+                        </div>
+                        <div class="csv-actions">
+                            <button onclick="downloadCsv('${encodeURIComponent(source)}')" class="csv-btn csv-download-btn" title="Download CSV">
+                                <span class="csv-btn-icon">⬇</span>
+                            </button>
+                            <button onclick="openCsvInNewTab('${encodeURIComponent(source)}')" class="csv-btn csv-newtab-btn" title="Open Raw CSV">
+                                <span class="csv-btn-icon">↗</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="csv-content-area">
+                        <div class="csv-loading">Loading CSV data...</div>
+                    </div>
+                </div>
+            `;
+
+            // Fetch and parse CSV data
+            fetch('{{ url_for("chat.get_document") }}?source=' + encodeURIComponent(source))
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('CSV file not found or not accessible');
+                    }
+                    return response.text();
+                })
+                .then(csvData => {
+                    const csvContentArea = contentElement.querySelector('.csv-content-area');
+                    const tableHtml = parseCsvToTable(csvData, source);
+                    csvContentArea.innerHTML = tableHtml;
+                })
+                .catch(error => {
+                    const csvContentArea = contentElement.querySelector('.csv-content-area');
+                    csvContentArea.innerHTML = `
+                        <div class="csv-error">
+                            <div class="csv-error-icon">⚠️</div>
+                            <div class="csv-error-text">
+                                <strong>Error loading CSV:</strong><br>
+                                ${error.message}
+                            </div>
+                        </div>
+                    `;
+                });
+        }
+
+        // Parse CSV data and convert to HTML table
+        function parseCsvToTable(csvData, source) {
+            const lines = csvData.trim().split('\n');
+            if (lines.length === 0) {
+                return '<div class="csv-error">Empty CSV file</div>';
+            }
+
+            // Detect delimiter - check for common separators
+            const firstLine = lines[0];
+            let delimiter = ',';
+            if (source.toLowerCase().endsWith('.tsv') || firstLine.includes('\t')) {
+                delimiter = '\t';
+            } else if (firstLine.split(';').length > firstLine.split(',').length) {
+                delimiter = ';';
+            }
+
+            // Parse CSV rows
+            const rows = lines.map(line => parseCsvLine(line, delimiter));
+
+            if (rows.length === 0) {
+                return '<div class="csv-error">No data found in CSV</div>';
+            }
+
+            // Build HTML table
+            let tableHtml = `
+                <div class="csv-info-bar">
+                    <span class="csv-stats">${rows.length - 1} rows × ${rows[0]?.length || 0} columns</span>
+                    <span class="csv-delimiter">Delimiter: ${delimiter === '\t' ? 'Tab' : delimiter}</span>
+                </div>
+                <div class="csv-table-wrapper">
+                    <table class="csv-table">
+            `;
+
+            // Add header row (assume first row is headers)
+            if (rows[0]) {
+                tableHtml += '<thead><tr>';
+                rows[0].forEach(cell => {
+                    tableHtml += `<th>${escapeHtml(cell)}</th>`;
+                });
+                tableHtml += '</tr></thead>';
+            }
+
+            // Add data rows
+            tableHtml += '<tbody>';
+            const dataRows = rows.slice(1); // Skip header row
+            const maxRows = 1000; // Limit for performance
+            const displayRows = dataRows.slice(0, maxRows);
+
+            displayRows.forEach(row => {
+                tableHtml += '<tr>';
+                row.forEach(cell => {
+                    tableHtml += `<td>${escapeHtml(cell)}</td>`;
+                });
+                tableHtml += '</tr>';
+            });
+
+            if (dataRows.length > maxRows) {
+                tableHtml += `
+                    <tr class="csv-truncated-notice">
+                        <td colspan="${rows[0]?.length || 1}">
+                            <em>... ${dataRows.length - maxRows} more rows (showing first ${maxRows} rows)</em>
+                        </td>
+                    </tr>
+                `;
+            }
+
+            tableHtml += '</tbody></table></div>';
+            return tableHtml;
+        }
+
+        // Simple CSV line parser (handles quoted fields)
+        function parseCsvLine(line, delimiter = ',') {
+            const result = [];
+            let current = '';
+            let inQuotes = false;
+
+            for (let i = 0; i < line.length; i++) {
+                const char = line[i];
+
+                if (char === '"') {
+                    inQuotes = !inQuotes;
+                } else if (char === delimiter && !inQuotes) {
+                    result.push(current.trim());
+                    current = '';
+                } else {
+                    current += char;
+                }
+            }
+
+            result.push(current.trim());
+            return result;
+        }
+
+        // CSV utility functions
+        function downloadCsv(source) {
+            const link = document.createElement('a');
+            link.href = '{{ url_for("chat.get_document") }}?source=' + encodeURIComponent(source);
+            link.download = decodeURIComponent(source.split('/').pop());
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function openCsvInNewTab(source) {
+            // Fetch the CSV content and display in new tab
+            fetch('{{ url_for("chat.get_document") }}?source=' + encodeURIComponent(source))
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('CSV file not accessible');
+                    }
+                    return response.text();
+                })
+                .then(csvContent => {
+                    // Create a new window and write HTML content to display the CSV
+                    const newWindow = window.open('', '_blank');
+                    if (newWindow) {
+                        const fileName = decodeURIComponent(source.split('/').pop());
+                        const tableHtml = parseCsvToTable(csvContent, source);
+
+                        newWindow.document.write(`
+                            <!DOCTYPE html>
+                            <html>
+                            <head>
+                                <title>${fileName}</title>
+                                <style>
+                                    body { 
+                                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                                        margin: 20px; 
+                                        background: #0d1117; 
+                                        color: #e6edf3;
+                                    }
+                                    h1 { 
+                                        color: #58a6ff; 
+                                        font-size: 1.5em;
+                                        margin-bottom: 10px;
+                                    }
+                                    .info { 
+                                        color: #7d8590; 
+                                        margin-bottom: 20px; 
+                                        font-size: 0.9em;
+                                    }
+                                    .csv-table-wrapper {
+                                        border: 1px solid #21262d;
+                                        border-radius: 6px;
+                                        overflow: auto;
+                                        max-height: 80vh;
+                                    }
+                                    .csv-table {
+                                        width: 100%;
+                                        border-collapse: collapse;
+                                        font-size: 0.85em;
+                                        background: #0d1117;
+                                    }
+                                    .csv-table th {
+                                        background: #161b22;
+                                        color: #58a6ff;
+                                        font-weight: 600;
+                                        padding: 8px 12px;
+                                        text-align: left;
+                                        border-bottom: 2px solid #30363d;
+                                        border-right: 1px solid #21262d;
+                                        position: sticky;
+                                        top: 0;
+                                        z-index: 100;
+                                        box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+                                    }
+                                    .csv-table th:last-child { border-right: none; }
+                                    .csv-table td {
+                                        padding: 6px 12px;
+                                        border-bottom: 1px solid #21262d;
+                                        border-right: 1px solid #21262d;
+                                        color: #e6edf3;
+                                        white-space: nowrap;
+                                        overflow: hidden;
+                                        text-overflow: ellipsis;
+                                        max-width: 200px;
+                                    }
+                                    .csv-table td:last-child { border-right: none; }
+                                    .csv-table tbody tr:hover { background: #161b22; }
+                                    .csv-table tbody tr:nth-child(even) { background: rgba(22, 27, 34, 0.5); }
+                                    .csv-table tbody tr:nth-child(even):hover { background: #161b22; }
+                                    .csv-info-bar {
+                                        display: flex;
+                                        justify-content: space-between;
+                                        padding: 8px 12px;
+                                        background: #161b22;
+                                        border-bottom: 1px solid #21262d;
+                                        font-size: 0.8em;
+                                        color: #7d8590;
+                                    }
+                                </style>
+                            </head>
+                            <body>
+                                <h1>📊 ${fileName}</h1>
+                                <div class="info">Source: ${decodeURIComponent(source)}</div>
+                                ${tableHtml}
+                            </body>
+                            </html>
+                        `);
+                        newWindow.document.close();
+                    } else {
+                        alert('Popup blocked! Please allow popups for this site to view CSV files in new tabs.');
+                    }
+                })
+                .catch(error => {
+                    alert('Error opening CSV file: ' + error.message);
+                });
+        }
+
         // Display text documents
         function displayTextDocument(source, startIndex, contentElement, allowBinaryFallback = false) {
-            fetch('/document?source=' + encodeURIComponent(source))
+            fetch('{{ url_for("chat.get_document") }}?source=' + encodeURIComponent(source))
                 .then(response => {
                     if (!response.ok) {
                         throw new Error('Document not found or not accessible');
@@ -329,7 +598,7 @@
                 })
                 .then(content => {
                     contentElement.innerHTML = '';
-                    
+
                     // Check if content looks like binary data
                     if (allowBinaryFallback && isBinaryContent(content)) {
                         contentElement.innerHTML = `
@@ -349,17 +618,17 @@
                         `;
                         return;
                     }
-                    
+
                     // Display as text with highlighting
                     if (startIndex > 0 && content.length > startIndex) {
                         const beforeChunk = content.substring(0, startIndex);
                         const chunkContent = content.substring(startIndex, Math.min(startIndex + 500, content.length));
                         const afterChunk = content.substring(Math.min(startIndex + 500, content.length));
-                        
-                        contentElement.innerHTML = escapeHtml(beforeChunk) + 
-                            '<span class="highlighted-chunk">' + escapeHtml(chunkContent) + '</span>' + 
+
+                        contentElement.innerHTML = escapeHtml(beforeChunk) +
+                            '<span class="highlighted-chunk">' + escapeHtml(chunkContent) + '</span>' +
                             escapeHtml(afterChunk);
-                        
+
                         // Scroll to highlighted section
                         setTimeout(() => {
                             const highlighted = contentElement.querySelector('.highlighted-chunk');
@@ -385,7 +654,7 @@
         function isBinaryContent(content) {
             // Check for null bytes or high ratio of non-printable characters
             if (content.includes('\0')) return true;
-            
+
             let nonPrintable = 0;
             for (let i = 0; i < Math.min(content.length, 1000); i++) {
                 const code = content.charCodeAt(i);
@@ -393,7 +662,7 @@
                     nonPrintable++;
                 }
             }
-            
+
             return (nonPrintable / Math.min(content.length, 1000)) > 0.1;
         }
 
@@ -407,19 +676,23 @@
         // PDF utility functions
         function downloadPdf(source) {
             const link = document.createElement('a');
-            link.href = '/document?source=' + encodeURIComponent(source);
-            link.download = source.split('/').pop(); // Extract filename
+            link.href = '{{ url_for("chat.get_document") }}?source=' + encodeURIComponent(source);
+            link.download = decodeURIComponent(source.split('/').pop()); // Extract filename
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
         }
 
         function openPdfInNewTab(source) {
-            window.open('/document?source=' + encodeURIComponent(source), '_blank');
+            // Open PDF directly in new tab using our document route
+            const newWindow = window.open('{{ url_for("chat.get_document") }}?source=' + encodeURIComponent(source), '_blank');
+            if (!newWindow) {
+                alert('Popup blocked! Please allow popups for this site to view PDF files in new tabs.');
+            }
         }
 
         // Handle escape key to close document viewer
-        document.addEventListener('keydown', function(e) {
+        document.addEventListener('keydown', function (e) {
             if (e.key === 'Escape') {
                 closeDocumentViewer();
             }

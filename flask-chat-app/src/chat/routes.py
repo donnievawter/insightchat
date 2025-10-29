@@ -161,6 +161,11 @@ def get_document():
         print("DEBUG: No source parameter provided")
         return jsonify({"error": "No source specified"}), 400
     
+    # URL decode the source to handle any double encoding
+    import urllib.parse
+    decoded_source = urllib.parse.unquote(source)
+    print(f"DEBUG: Decoded source: '{decoded_source}'")
+    
     rag_api_url = os.getenv("RAG_API_URL")
     print(f"DEBUG: RAG_API_URL: {rag_api_url}")
     
@@ -169,16 +174,16 @@ def get_document():
         return jsonify({"error": "RAG API not configured"}), 503
     
     try:
-        print(f"DEBUG: Attempting to fetch document content for: {source}")
-        content = fetch_document_content(source, rag_api_url)
+        print(f"DEBUG: Attempting to fetch document content for: {decoded_source}")
+        content = fetch_document_content(decoded_source, rag_api_url)
         print(f"DEBUG: fetch_document_content returned: {type(content)} with length {len(content) if content else 0}")
         
         if content is None:
-            print(f"DEBUG: Content is None, returning 404 for {source}")
+            print(f"DEBUG: Content is None, returning 404 for {decoded_source}")
             return jsonify({"error": "Document not found or not accessible"}), 404
         
         # Determine content type based on file extension
-        file_extension = source.split('.')[-1].lower() if '.' in source else ''
+        file_extension = decoded_source.split('.')[-1].lower() if '.' in decoded_source else ''
         content_type_map = {
             'png': 'image/png',
             'jpg': 'image/jpeg',
@@ -200,15 +205,15 @@ def get_document():
         
         # Handle binary vs text content
         if isinstance(content, bytes):
-            print(f"DEBUG: Returning binary content ({len(content)} bytes) for {source}")
+            print(f"DEBUG: Returning binary content ({len(content)} bytes) for {decoded_source}")
             from flask import Response
             return Response(content, 200, {'Content-Type': content_type})
         else:
-            print(f"DEBUG: Returning text content ({len(content)} chars) for {source}")
+            print(f"DEBUG: Returning text content ({len(content)} chars) for {decoded_source}")
             return content, 200, {'Content-Type': content_type}
         
     except Exception as e:
-        print(f"DEBUG: Exception in document route for {source}: {type(e).__name__}: {e}")
+        print(f"DEBUG: Exception in document route for {decoded_source}: {type(e).__name__}: {e}")
         import traceback
         print(f"DEBUG: Full traceback: {traceback.format_exc()}")
         return jsonify({"error": str(e)}), 500
