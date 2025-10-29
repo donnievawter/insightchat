@@ -246,3 +246,235 @@ body {
     transform: none;
     box-shadow: none;
 }
+
+/* RAG Chunks Display Styles */
+.toggle-chunks-btn {
+    background: rgba(88, 166, 255, 0.1);
+    color: #58a6ff;
+    border: 1px solid rgba(88, 166, 255, 0.3);
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-left: 8px;
+}
+
+.toggle-chunks-btn:hover {
+    background: rgba(88, 166, 255, 0.2);
+    border-color: rgba(88, 166, 255, 0.5);
+}
+
+.rag-chunks {
+    margin-top: 12px;
+    padding: 16px;
+    background: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: 8px;
+    font-size: 0.9rem;
+}
+
+.chunks-header h4 {
+    margin: 0 0 12px 0;
+    color: #58a6ff;
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.chunk-item {
+    margin-bottom: 16px;
+    padding: 12px;
+    background: #161b22;
+    border: 1px solid #21262d;
+    border-radius: 6px;
+    border-left: 3px solid #58a6ff;
+}
+
+.chunk-item:last-child {
+    margin-bottom: 0;
+}
+
+.chunk-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+}
+
+.chunk-source {
+    font-weight: 600;
+    color: #58a6ff;
+    font-size: 0.8rem;
+    flex-shrink: 0;
+}
+
+.chunk-page {
+    color: #7d8590;
+    font-size: 0.75rem;
+    padding: 2px 6px;
+    background: rgba(125, 133, 144, 0.1);
+    border-radius: 3px;
+}
+
+.view-doc-btn {
+    background: linear-gradient(135deg, #238636 0%, #2ea043 100%);
+    color: white;
+    border: none;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-left: auto;
+}
+
+.view-doc-btn:hover {
+    background: linear-gradient(135deg, #2ea043 0%, #46954a 100%);
+    transform: translateY(-1px);
+}
+
+.chunk-content {
+    color: #e6edf3;
+    line-height: 1.4;
+    margin-bottom: 8px;
+}
+
+.chunk-content p {
+    margin: 0;
+}
+
+.chunk-actions {
+    border-top: 1px solid #21262d;
+    padding-top: 8px;
+}
+
+.expand-chunk-btn {
+    background: transparent;
+    color: #58a6ff;
+    border: 1px solid rgba(88, 166, 255, 0.3);
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.expand-chunk-btn:hover {
+    background: rgba(88, 166, 255, 0.1);
+    border-color: rgba(88, 166, 255, 0.5);
+}
+
+.chunk-full-content {
+    margin-top: 8px;
+    padding: 8px;
+    background: #0d1117;
+    border-radius: 4px;
+    border: 1px solid #21262d;
+}
+
+.chunk-full-content p {
+    margin: 0;
+    color: #e6edf3;
+    font-size: 0.85rem;
+    line-height: 1.5;
+}
+
+/* Document Viewer Modal */
+.document-viewer-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.8);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.document-viewer {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 12px;
+    max-width: 90vw;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 12px 48px rgba(0, 0, 0, 0.6);
+}
+
+.document-viewer-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid #30363d;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: linear-gradient(135deg, #2563eb 0%, #7c3aed 100%);
+    color: white;
+    border-radius: 12px 12px 0 0;
+}
+
+.document-viewer-header h3 {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.document-viewer-close {
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.document-viewer-close:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.document-viewer-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    background: #0d1117;
+    color: #e6edf3;
+    font-family: 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace;
+    font-size: 0.9rem;
+    line-height: 1.6;
+    white-space: pre-wrap;
+}
+
+.document-viewer-content::-webkit-scrollbar {
+    width: 8px;
+}
+
+.document-viewer-content::-webkit-scrollbar-track {
+    background: #161b22;
+}
+
+.document-viewer-content::-webkit-scrollbar-thumb {
+    background: #30363d;
+    border-radius: 4px;
+}
+
+.document-viewer-content::-webkit-scrollbar-thumb:hover {
+    background: #484f58;
+}
+
+.highlighted-chunk {
+    background: rgba(255, 235, 59, 0.2);
+    border: 1px solid rgba(255, 235, 59, 0.4);
+    border-radius: 4px;
+    padding: 2px 4px;
+    animation: highlightPulse 2s ease-in-out;
+}
+
+@keyframes highlightPulse {
+    0%, 100% { background: rgba(255, 235, 59, 0.2); }
+    50% { background: rgba(255, 235, 59, 0.4); }
+}

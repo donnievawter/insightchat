@@ -46,8 +46,49 @@
             <div class="message {{ message.role }}">
                 <div class="message-header">
                     <span class="message-role">{{ message.role.title() }}</span>
+                    {% if message.role == 'assistant' and message.get('rag_chunks') %}
+                    <button class="toggle-chunks-btn" onclick="toggleChunks('{{ loop.index }}')">
+                        <span id="chunks-icon-{{ loop.index }}">📄</span> 
+                        <span id="chunks-text-{{ loop.index }}">Show Sources ({{ message.rag_chunks|length }})</span>
+                    </button>
+                    {% endif %}
                 </div>
                 <div class="message-content">{{ message.content | safe }}</div>
+                
+                {% if message.role == 'assistant' and message.get('rag_chunks') %}
+                <div class="rag-chunks" id="chunks-{{ loop.index }}" style="display: none;">
+                    <div class="chunks-header">
+                        <h4>Retrieved Context Sources</h4>
+                    </div>
+                    {% set outer_loop = loop %}
+                    {% for chunk in message.rag_chunks %}
+                    <div class="chunk-item">
+                        <div class="chunk-header">
+                            <span class="chunk-source">{{ chunk.metadata.get('source', 'Unknown Source') }}</span>
+                            {% if chunk.metadata.get('page') %}
+                            <span class="chunk-page">Page {{ chunk.metadata.page }}</span>
+                            {% endif %}
+                            <button class="view-doc-btn" 
+                                    data-source="{{ chunk.metadata.get('source', '') }}" 
+                                    data-start-index="{{ chunk.get('start_index', 0) }}">
+                                View Document
+                            </button>
+                        </div>
+                        <div class="chunk-content">
+                            <p>{{ chunk.content[:200] }}{% if chunk.content|length > 200 %}...{% endif %}</p>
+                        </div>
+                        <div class="chunk-actions">
+                            <button class="expand-chunk-btn" onclick="toggleChunkExpansion('msg{{ outer_loop.index }}_chunk{{ loop.index0 }}')">
+                                <span id="chunk-expand-msg{{ outer_loop.index }}_chunk{{ loop.index0 }}">Show More</span>
+                            </button>
+                            <div class="chunk-full-content" id="chunk-full-msg{{ outer_loop.index }}_chunk{{ loop.index0 }}" style="display: none;">
+                                <p>{{ chunk.content }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
             </div>
             {% endfor %}
         </div>
@@ -92,6 +133,232 @@
                     sendButton.disabled = true;
                     sendButton.textContent = 'Sending...';
                 });
+            }
+
+            // Handle view document buttons
+            document.addEventListener('click', function(e) {
+                if (e.target.classList.contains('view-doc-btn')) {
+                    const source = e.target.getAttribute('data-source');
+                    const startIndex = parseInt(e.target.getAttribute('data-start-index') || '0');
+                    viewDocument(source, startIndex);
+                }
+            });
+        });
+
+        // Toggle chunks display
+        function toggleChunks(messageIndex) {
+            const chunksDiv = document.getElementById('chunks-' + messageIndex);
+            const icon = document.getElementById('chunks-icon-' + messageIndex);
+            const text = document.getElementById('chunks-text-' + messageIndex);
+            
+            if (chunksDiv.style.display === 'none') {
+                chunksDiv.style.display = 'block';
+                icon.textContent = '📂';
+                text.textContent = text.textContent.replace('Show', 'Hide');
+            } else {
+                chunksDiv.style.display = 'none';
+                icon.textContent = '📄';
+                text.textContent = text.textContent.replace('Hide', 'Show');
+            }
+        }
+
+        // Toggle individual chunk expansion
+        function toggleChunkExpansion(chunkIndex) {
+            const fullContent = document.getElementById('chunk-full-' + chunkIndex);
+            const expandBtn = document.getElementById('chunk-expand-' + chunkIndex);
+            
+            if (fullContent && expandBtn) {
+                if (fullContent.style.display === 'none') {
+                    fullContent.style.display = 'block';
+                    expandBtn.textContent = 'Show Less';
+                } else {
+                    fullContent.style.display = 'none';
+                    expandBtn.textContent = 'Show More';
+                }
+            }
+        }
+
+        // View document in modal
+        function viewDocument(source, startIndex = 0) {
+            // Create modal overlay
+            const overlay = document.createElement('div');
+            overlay.className = 'document-viewer-overlay';
+            overlay.onclick = function(e) {
+                if (e.target === overlay) {
+                    closeDocumentViewer();
+                }
+            };
+
+            // Create document viewer
+            const viewer = document.createElement('div');
+            viewer.className = 'document-viewer';
+
+            // Create header
+            const header = document.createElement('div');
+            header.className = 'document-viewer-header';
+            header.innerHTML = `
+                <h3>${source}</h3>
+                <button class="document-viewer-close" onclick="closeDocumentViewer()">Close</button>
+            `;
+
+            // Create content area
+            const content = document.createElement('div');
+            content.className = 'document-viewer-content';
+            content.innerHTML = '<div style="text-align: center; padding: 40px; color: #7d8590;">Loading document...</div>';
+
+            viewer.appendChild(header);
+            viewer.appendChild(content);
+            overlay.appendChild(viewer);
+            document.body.appendChild(overlay);
+
+            // Fetch document content
+            fetchDocumentContent(source, startIndex, content);
+        }
+
+        // Close document viewer
+        function closeDocumentViewer() {
+            const overlay = document.querySelector('.document-viewer-overlay');
+            if (overlay) {
+                overlay.remove();
+            }
+        }
+
+        // Fetch and display document content
+        function fetchDocumentContent(source, startIndex, contentElement) {
+            // Determine file type from extension
+            const fileExtension = source.split('.').pop().toLowerCase();
+            const imageExtensions = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp'];
+            const textExtensions = ['txt', 'md', 'py', 'js', 'html', 'css', 'json', 'xml', 'yaml', 'yml', 'sh', 'conf', 'log'];
+            
+            if (imageExtensions.includes(fileExtension)) {
+                // Display image
+                displayImageDocument(source, contentElement);
+            } else if (textExtensions.includes(fileExtension)) {
+                // Display as text
+                displayTextDocument(source, startIndex, contentElement);
+            } else {
+                // Try to display as text first, fallback to binary info
+                displayTextDocument(source, startIndex, contentElement, true);
+            }
+        }
+
+        // Display image documents
+        function displayImageDocument(source, contentElement) {
+            contentElement.innerHTML = `
+                <div style="text-align: center; padding: 20px;">
+                    <div style="margin-bottom: 20px; color: #58a6ff;">
+                        <strong>📷 Image Document</strong><br>
+                        <small>Source: ${escapeHtml(source)}</small>
+                    </div>
+                    <div style="max-width: 100%; overflow: auto;">
+                        <img src="/document?source=${encodeURIComponent(source)}" 
+                             alt="${escapeHtml(source)}" 
+                             style="max-width: 100%; height: auto; border: 1px solid #30363d; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.3);"
+                             onload="this.style.display='block'" 
+                             onerror="this.style.display='none'; this.nextElementSibling.style.display='block'">
+                        <div style="display: none; padding: 20px; background: #2d1b20; border: 1px solid #da3633; border-radius: 8px; color: #f97583;">
+                            <strong>Error loading image</strong><br>
+                            The image could not be displayed. It may be corrupted or in an unsupported format.
+                        </div>
+                    </div>
+                    <div style="margin-top: 20px; font-size: 0.9em; color: #7d8590;">
+                        This image was referenced in the RAG context. 
+                        <br>For text content, check if there are associated description files.
+                    </div>
+                </div>
+            `;
+        }
+
+        // Display text documents
+        function displayTextDocument(source, startIndex, contentElement, allowBinaryFallback = false) {
+            fetch('/document?source=' + encodeURIComponent(source))
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Document not found or not accessible');
+                    }
+                    return response.text();
+                })
+                .then(content => {
+                    contentElement.innerHTML = '';
+                    
+                    // Check if content looks like binary data
+                    if (allowBinaryFallback && isBinaryContent(content)) {
+                        contentElement.innerHTML = `
+                            <div style="text-align: center; padding: 40px; color: #7d8590;">
+                                <div style="margin-bottom: 20px;">
+                                    <strong>📄 Binary Document</strong><br>
+                                    <small>Source: ${escapeHtml(source)}</small>
+                                </div>
+                                <div style="background: #161b22; border: 1px solid #30363d; padding: 20px; border-radius: 8px; font-family: monospace;">
+                                    <div>File Type: ${source.split('.').pop().toUpperCase() || 'Unknown'}</div>
+                                    <div>Size: ${content.length} bytes</div>
+                                    <div style="margin-top: 10px; font-size: 0.8em;">
+                                        This appears to be a binary file that cannot be displayed as text.
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                        return;
+                    }
+                    
+                    // Display as text with highlighting
+                    if (startIndex > 0 && content.length > startIndex) {
+                        const beforeChunk = content.substring(0, startIndex);
+                        const chunkContent = content.substring(startIndex, Math.min(startIndex + 500, content.length));
+                        const afterChunk = content.substring(Math.min(startIndex + 500, content.length));
+                        
+                        contentElement.innerHTML = escapeHtml(beforeChunk) + 
+                            '<span class="highlighted-chunk">' + escapeHtml(chunkContent) + '</span>' + 
+                            escapeHtml(afterChunk);
+                        
+                        // Scroll to highlighted section
+                        setTimeout(() => {
+                            const highlighted = contentElement.querySelector('.highlighted-chunk');
+                            if (highlighted) {
+                                highlighted.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            }
+                        }, 100);
+                    } else {
+                        contentElement.textContent = content;
+                    }
+                })
+                .catch(error => {
+                    contentElement.innerHTML = `
+                        <div style="text-align: center; padding: 40px; color: #f85149;">
+                            <strong>Error loading document:</strong><br>
+                            ${error.message}
+                        </div>
+                    `;
+                });
+        }
+
+        // Check if content appears to be binary
+        function isBinaryContent(content) {
+            // Check for null bytes or high ratio of non-printable characters
+            if (content.includes('\0')) return true;
+            
+            let nonPrintable = 0;
+            for (let i = 0; i < Math.min(content.length, 1000); i++) {
+                const code = content.charCodeAt(i);
+                if (code < 32 && code !== 9 && code !== 10 && code !== 13) {
+                    nonPrintable++;
+                }
+            }
+            
+            return (nonPrintable / Math.min(content.length, 1000)) > 0.1;
+        }
+
+        // Escape HTML for safe display
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Handle escape key to close document viewer
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeDocumentViewer();
             }
         });
     </script>
