@@ -15,7 +15,18 @@ def chat():
         
         # Get available models from Ollama
         available_models = get_available_models()
-        current_model = session.get("model", available_models[0]["name"] if available_models else "llama2:latest")
+        
+        # Determine default model from environment or fallback
+        default_model = os.getenv("DEFAULT_MODEL", "llama3.2:latest")
+        
+        # If the default model from env is not available, use first available or fallback
+        if available_models:
+            available_model_names = [model["name"] for model in available_models]
+            if default_model not in available_model_names:
+                print(f"DEBUG: DEFAULT_MODEL '{default_model}' not found in available models, using first available")
+                default_model = available_models[0]["name"]
+        
+        current_model = session.get("model", default_model)
         current_use_repo_docs = session.get("use_repo_docs", False)
         
         return render_template("chat.html", 

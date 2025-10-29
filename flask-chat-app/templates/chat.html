@@ -229,10 +229,14 @@
             const fileExtension = source.split('.').pop().toLowerCase();
             const imageExtensions = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp'];
             const textExtensions = ['txt', 'md', 'py', 'js', 'html', 'css', 'json', 'xml', 'yaml', 'yml', 'sh', 'conf', 'log'];
+            const pdfExtensions = ['pdf'];
             
             if (imageExtensions.includes(fileExtension)) {
                 // Display image
                 displayImageDocument(source, contentElement);
+            } else if (pdfExtensions.includes(fileExtension)) {
+                // Display PDF
+                displayPdfDocument(source, contentElement);
             } else if (textExtensions.includes(fileExtension)) {
                 // Display as text
                 displayTextDocument(source, startIndex, contentElement);
@@ -264,6 +268,51 @@
                     <div style="margin-top: 20px; font-size: 0.9em; color: #7d8590;">
                         This image was referenced in the RAG context. 
                         <br>For text content, check if there are associated description files.
+                    </div>
+                </div>
+            `;
+        }
+
+        // Display PDF documents
+        function displayPdfDocument(source, contentElement) {
+            contentElement.innerHTML = `
+                <div class="pdf-document-container">
+                    <div class="pdf-header">
+                        <div class="pdf-title">
+                            <span class="pdf-icon">📄</span>
+                            <div class="pdf-info">
+                                <div class="pdf-name">${escapeHtml(source.split('/').pop())}</div>
+                                <div class="pdf-source">Source: ${escapeHtml(source)}</div>
+                            </div>
+                        </div>
+                        <div class="pdf-actions">
+                            <button onclick="downloadPdf('${encodeURIComponent(source)}')" class="pdf-btn pdf-download-btn" title="Download PDF">
+                                <span class="pdf-btn-icon">⬇</span>
+                            </button>
+                            <button onclick="openPdfInNewTab('${encodeURIComponent(source)}')" class="pdf-btn pdf-newtab-btn" title="Open in New Tab">
+                                <span class="pdf-btn-icon">↗</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="pdf-viewer-frame">
+                        <iframe id="pdf-viewer-${Date.now()}" 
+                                src="/document?source=${encodeURIComponent(source)}" 
+                                class="pdf-iframe"
+                                onload="this.style.display='block'; this.nextElementSibling.style.display='none';"
+                                onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                        </iframe>
+                        <div class="pdf-error-fallback" style="display: none;">
+                            <div class="pdf-error-content">
+                                <div class="pdf-error-icon">⚠️</div>
+                                <div class="pdf-error-text">
+                                    <strong>PDF Preview Unavailable</strong><br>
+                                    <span>Your browser doesn't support inline PDF viewing</span>
+                                </div>
+                                <button onclick="downloadPdf('${encodeURIComponent(source)}')" class="pdf-error-btn">
+                                    Download PDF
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             `;
@@ -353,6 +402,20 @@
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
+        }
+
+        // PDF utility functions
+        function downloadPdf(source) {
+            const link = document.createElement('a');
+            link.href = '/document?source=' + encodeURIComponent(source);
+            link.download = source.split('/').pop(); // Extract filename
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function openPdfInNewTab(source) {
+            window.open('/document?source=' + encodeURIComponent(source), '_blank');
         }
 
         // Handle escape key to close document viewer

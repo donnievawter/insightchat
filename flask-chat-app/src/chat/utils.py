@@ -178,11 +178,14 @@ def fetch_document_content(source, rag_api_url=None):
             # Check if this looks like base64 encoded content
             is_base64_image = False
             
-            # Check by content type or file extension or content pattern
-            if (content_type and ('image' in content_type or 'octet-stream' in content_type)) or \
-               (source and any(source.lower().endswith(ext) for ext in ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp'])) or \
-               (content.startswith(('iVBORw0KGgo', '/9j/', 'R0lGODlh', 'UklGR'))):  # Common base64 image prefixes
-                print("DEBUG: Detected potential base64 image content")
+            # Check if this looks like base64 encoded binary content (images, PDFs, etc.)
+            binary_extensions = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp', '.pdf']
+            binary_prefixes = ['iVBORw0KGgo', '/9j/', 'R0lGODlh', 'UklGR', 'JVBERi0']  # PNG, JPG, GIF, RIFF, PDF
+            
+            if (content_type and ('image' in content_type or 'octet-stream' in content_type or 'pdf' in content_type)) or \
+               (source and any(source.lower().endswith(ext) for ext in binary_extensions)) or \
+               (content.startswith(tuple(binary_prefixes))):
+                print("DEBUG: Detected potential base64 binary content (image/PDF)")
                 try:
                     import base64
                     # Try to decode as base64
