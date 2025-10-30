@@ -52,6 +52,14 @@
                         <span id="chunks-text-{{ loop.index }}">Show Sources ({{ message.rag_chunks|length }})</span>
                     </button>
                     {% endif %}
+
+                    {% if message.role == 'assistant' and message.get('hybrid_analysis') %}
+                    <div class="hybrid-indicator">
+                        <span class="hybrid-icon">🔍</span>
+                        <span class="hybrid-text">Full Document Analysis</span>
+                        <span class="hybrid-count">({{ message.analyzed_documents|length }} docs)</span>
+                    </div>
+                    {% endif %}
                 </div>
                 <div class="message-content">{{ message.content | safe }}</div>
 

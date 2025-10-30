@@ -265,6 +265,32 @@ body {
     border-color: rgba(88, 166, 255, 0.5);
 }
 
+/* Hybrid Analysis Indicator */
+.hybrid-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(34, 197, 94, 0.1);
+    color: #22c55e;
+    border: 1px solid rgba(34, 197, 94, 0.3);
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    margin-left: 8px;
+}
+
+.hybrid-icon {
+    font-size: 0.8em;
+}
+
+.hybrid-text {
+    font-weight: 500;
+}
+
+.hybrid-count {
+    opacity: 0.8;
+}
+
 .rag-chunks {
     margin-top: 12px;
     padding: 16px;

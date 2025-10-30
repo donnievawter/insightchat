@@ -57,6 +57,23 @@ def chat():
         # Add user message to history
         session["message_history"].append({"role": "user", "content": prompt})
 
+        # Check if we can reuse context from recent conversation
+        recent_full_context = None
+        recent_analyzed_docs = []
+        
+        # Look for recent messages with full document analysis
+        for msg in reversed(session["message_history"][-3:]):  # Check last 3 messages
+            if msg.get("hybrid_analysis") and msg.get("analyzed_documents"):
+                recent_analyzed_docs = msg["analyzed_documents"]
+                print(f"DEBUG: Found recent full document analysis: {recent_analyzed_docs}")
+                # Check if current query might be about the same documents
+                query_lower = prompt.lower()
+                doc_keywords = ["document", "portfolio", "csv", "file", "data", "rows", "columns"]
+                if any(keyword in query_lower for keyword in doc_keywords):
+                    print(f"DEBUG: Follow-up query detected, will reuse recent context")
+                    # We'll fetch the same documents again but skip RAG search
+                    break
+        
         # Fetch context from RAG if requested
         context_text = None
         rag_chunks = []
@@ -79,15 +96,77 @@ def chat():
                                      model=model,
                                      use_repo_docs=use_repo_docs)
             
-            # Get both context and chunk data
-            context_text, rag_chunks = fetch_repo_chunks(prompt, k=k, rag_api_url=rag_api_url, return_chunks=True)
-            print(f"DEBUG: RAG context retrieved: {bool(context_text)}")  # Debug log
-            print(f"DEBUG: RAG chunks retrieved: {len(rag_chunks)}")  # Debug log
+            # Decide whether to do new RAG search or reuse recent context
+            if recent_analyzed_docs:
+                print(f"DEBUG: Reusing recent document context instead of new RAG search")
+                # Skip RAG search, we'll fetch the same documents directly
+                analyze_documents = recent_analyzed_docs
+                rag_chunks = []  # No new chunks needed
+                context_text = None  # No new RAG context needed
+            else:
+                # Get both context and chunk data via normal RAG search
+                context_text, rag_chunks = fetch_repo_chunks(prompt, k=k, rag_api_url=rag_api_url, return_chunks=True)
+                print(f"DEBUG: RAG context retrieved: {bool(context_text)}")  # Debug log
+                print(f"DEBUG: RAG chunks retrieved: {len(rag_chunks)}")  # Debug log
             
+            # Hybrid approach: Check if any found documents need full-document analysis
+            full_document_context = None
+            
+            # If reusing recent context, analyze_documents is already set
+            if not recent_analyzed_docs and rag_chunks:
+                analyze_documents = []
+                for chunk in rag_chunks:
+                    source = chunk.get('metadata', {}).get('source', '')
+                    if source.startswith('analyze/'):
+                        analyze_documents.append(source)
+                        print(f"DEBUG: Found analyze/ document: {source}")
+            
+            # Fetch full content for analyze/ documents (either new or reused)
+            if 'analyze_documents' in locals() and analyze_documents:
+                    full_docs = []
+                    for doc_source in set(analyze_documents):  # Remove duplicates
+                        try:
+                            print(f"DEBUG: Fetching full document: {doc_source}")
+                            full_content = fetch_document_content(doc_source, rag_api_url)
+                            if full_content:
+                                # Skip binary content (PDFs, images) - only use text-based documents for full context
+                                if isinstance(full_content, bytes):
+                                    print(f"DEBUG: Skipping binary document {doc_source} for full context (binary content not suitable for LLM)")
+                                    continue
+                                elif len(full_content) > 500000:  # Skip very large documents that might be binary-as-text
+                                    print(f"DEBUG: Skipping very large document {doc_source} ({len(full_content)} chars) - likely binary")
+                                    continue
+                                else:
+                                    full_docs.append(f"---\nFull Document: {doc_source}\n{full_content}\n")
+                                    print(f"DEBUG: Retrieved full document {doc_source}: {len(full_content)} chars")
+                        except Exception as e:
+                            print(f"DEBUG: Error fetching full document {doc_source}: {e}")
+                    
+                    if full_docs:
+                        full_document_context = """PRIORITY: Complete documents for comprehensive analysis (use these for accurate counts and detailed analysis):
+
+IMPORTANT INSTRUCTIONS FOR CSV/STRUCTURED DATA ANALYSIS:
+- When counting rows, count each line that contains data (including header)
+- When counting properties/records, count data rows only (exclude header)  
+- When analyzing CSV data, examine the complete structure systematically
+- For row counts: Count every line break to get total rows
+- For data counts: Count entries excluding the header row
+
+""" + "\n".join(full_docs)
+                        print(f"DEBUG: Full document context length: {len(full_document_context)} chars")
+            
+            # Build final context - prioritize full documents first
+            final_context_parts = []
+            if full_document_context:
+                final_context_parts.append(full_document_context)
             if context_text:
-                print(f"DEBUG: Context length: {len(context_text)} chars")  # Debug log
+                final_context_parts.append("\n---\nAdditional context from document chunks:\n" + context_text)
+            
+            if final_context_parts:
+                combined_context = "\n\n".join(final_context_parts)
+                print(f"DEBUG: Combined context length: {len(combined_context)} chars")
                 # Insert context as system message temporarily for this query
-                temp_history = [{"role": "system", "content": context_text}] + session["message_history"]
+                temp_history = [{"role": "system", "content": combined_context}] + session["message_history"]
             else:
                 print("DEBUG: No context retrieved from RAG")
                 temp_history = session["message_history"]
@@ -97,7 +176,25 @@ def chat():
 
         # Get response from Ollama
         try:
-            system_prompt = session.get("system_prompt", "You are a helpful assistant.")
+            # Enhanced system prompt for better structured data analysis
+            base_system_prompt = session.get("system_prompt", "You are a helpful assistant.")
+            
+            # Add CSV analysis instructions if we have full document context
+            if 'full_document_context' in locals() and full_document_context:
+                system_prompt = base_system_prompt + """
+
+ADDITIONAL INSTRUCTIONS FOR DOCUMENT ANALYSIS:
+- When analyzing CSV/tabular data, be systematic and precise
+- For row counting: Count each line including header (total rows in file)
+- For data record counting: Count data rows only, excluding header
+- When given complete documents, use them as the authoritative source
+- Double-check your counting by examining the structure carefully
+"""
+            else:
+                system_prompt = base_system_prompt
+            
+
+            
             response_text, _ = prompt_model(
                 model=model, 
                 prompt=prompt, 
@@ -114,6 +211,13 @@ def chat():
             # Include RAG chunks if they were used
             if rag_chunks:
                 assistant_message["rag_chunks"] = rag_chunks
+            
+            # Include hybrid analysis information
+            if 'full_document_context' in locals() and full_document_context:
+                assistant_message["hybrid_analysis"] = True
+                assistant_message["analyzed_documents"] = list(set(analyze_documents)) if 'analyze_documents' in locals() else []
+                # Store the primary analyzed documents in session for context continuity
+                session["last_analyzed_documents"] = list(set(analyze_documents)) if 'analyze_documents' in locals() else []
                 
             session["message_history"].append(assistant_message)
             session.modified = True  # Mark session as modified
