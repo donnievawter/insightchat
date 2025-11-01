@@ -129,16 +129,12 @@ def chat():
                             print(f"DEBUG: Fetching full document: {doc_source}")
                             full_content = fetch_document_content(doc_source, rag_api_url)
                             if full_content:
-                                # Only use actual complete documents (typically CSVs, text files)
-                                # Skip binary content and very large files
+                                # Skip binary content (PDFs, images) - only use text-based documents for full context
                                 if isinstance(full_content, bytes):
-                                    print(f"DEBUG: Skipping binary document {doc_source} for full context")
+                                    print(f"DEBUG: Skipping binary document {doc_source} for full context (binary content not suitable for LLM)")
                                     continue
-                                elif len(full_content) > 800000:
-                                    print(f"DEBUG: Skipping very large document {doc_source} ({len(full_content)} chars)")
-                                    continue
-                                elif full_content[:100].startswith(('JVBERi', '%PDF', '\x00', 'PK\x03\x04')):
-                                    print(f"DEBUG: Skipping binary-encoded document {doc_source}")
+                                elif len(full_content) > 500000:  # Skip very large documents that might be binary-as-text
+                                    print(f"DEBUG: Skipping very large document {doc_source} ({len(full_content)} chars) - likely binary")
                                     continue
                                 else:
                                     full_docs.append(f"---\nFull Document: {doc_source}\n{full_content}\n")
