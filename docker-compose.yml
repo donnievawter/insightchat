@@ -18,7 +18,7 @@ services:
     networks:
       - insightchat-network
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5030/chat')"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5030/health')"]
       interval: 30s
       timeout: 10s
       retries: 3

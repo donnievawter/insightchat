@@ -225,7 +225,7 @@ def get_available_models(ollama_base_url=None):
     
     try:
         tags_url = f"{ollama_base_url.rstrip('/')}/api/tags"
-        print(f"DEBUG: Fetching models from {tags_url}")
+        # print(f"DEBUG: Fetching models from {tags_url}")  # Commented out to reduce log noise
         
         response = requests.get(tags_url, timeout=10)
         response.raise_for_status()
@@ -245,7 +245,7 @@ def get_available_models(ollama_base_url=None):
                         "parameter_size": model_info.get("details", {}).get("parameter_size", "")
                     })
         
-        print(f"DEBUG: Found {len(models)} available models")
+        # print(f"DEBUG: Found {len(models)} available models")  # Commented out to reduce log noise
         return models
         
     except Exception as e:
@@ -266,33 +266,37 @@ def prompt_model(model, prompt, history=None, system_prompt="You are a helpful a
         system_prompt=system_prompt,
         temperature=0.7
     )
-    '''
-    # Debug logging for payload
-    print("DEBUG: ===== OLLAMA PAYLOAD DEBUG =====")
+    # Minimal debug logging
+    print("DEBUG: ===== OLLAMA REQUEST =====")
     print("DEBUG: Model:", payload.get('model'))
     print("DEBUG: Number of messages:", len(payload.get('messages', [])))
-    
-    for i, msg in enumerate(payload.get('messages', [])):
-        role = msg.get('role', 'unknown')
-        content = msg.get('content', '')
-        print(f"DEBUG: Message {i}: Role={role}, Content length={len(content)}")
-        
-        if role == 'system':
-            print(f"DEBUG: System message preview (first 1000 chars):\n{content[:1000]}")
-        elif role == 'user':
-            print(f"DEBUG: User message: {content}")
-        elif role == 'assistant':
-            print(f"DEBUG: Assistant message preview: {content[:200]}")
-    
-    print("DEBUG: ===== END PAYLOAD DEBUG =====")
-    '''
+    total_content_size = sum(len(msg.get('content', '')) for msg in payload.get('messages', []))
+    print(f"DEBUG: Total content size: {total_content_size:,} characters")
+    print("DEBUG: ===== SENDING REQUEST =====")
+    # Removed excessive content dumping to focus on the real issue
     try:
         # Configurable timeout - default 600 seconds (10 minutes) for large context processing
         timeout = int(os.getenv("OLLAMA_TIMEOUT", 600))
         print(f"DEBUG: Using Ollama timeout: {timeout} seconds")
+        
+        # Check if this is a very large context that might cause issues
+        total_chars = sum(len(msg.get('content', '')) for msg in payload.get('messages', []))
+        if total_chars > 100000:
+            print(f"DEBUG: WARNING - Very large context ({total_chars:,} chars) - processing may take several minutes with {payload.get('model')}")
+            print(f"DEBUG: Consider using models with larger context windows like qwen2.5vl:latest or qwen3-coder:30b for better performance")
+            # Don't reduce timeout - large contexts need time!
+        
+        print(f"DEBUG: Sending POST request to {ollama_url}")
+        
         response = requests.post(ollama_url, json=payload, timeout=timeout)
+        print(f"DEBUG: Received response from Ollama, status: {response.status_code}")
+        
         response.raise_for_status()
-        content = response.json().get("message", {}).get("content", "").strip()
+        response_data = response.json()
+        print(f"DEBUG: Response JSON keys: {list(response_data.keys())}")
+        
+        content = response_data.get("message", {}).get("content", "").strip()
+        print(f"DEBUG: Extracted content length: {len(content):,} chars")
     except requests.exceptions.Timeout as e:
         timeout_min = timeout // 60
         content = f"⏰ Request timed out after {timeout} seconds ({timeout_min} minutes). The model may be processing a very large context. Try:\n\n1. Using a model with larger context window (e.g., qwen3-coder:30b)\n2. Reducing document size\n3. Breaking complex queries into smaller parts\n\nError details: {str(e)}"

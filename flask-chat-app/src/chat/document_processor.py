@@ -142,6 +142,9 @@ Summary: (only if score 6+, max 100 words)"""
         
         # Create final summary based on most relevant chunks
         if relevant_summaries:
+            # Create the sections analysis string outside f-string to avoid backslash issue
+            sections_analysis = "\n".join([f"Section {s['chunk_index']+1} (Relevance: {s['relevance_score']}/10):\n{s['summary']}" for s in relevant_summaries[:5]])
+            
             final_prompt = f"""Based on the document analysis below, provide a comprehensive answer to the user's question:
 
 Document: {document_path}
@@ -151,7 +154,7 @@ Document Overview:
 {overview_response}
 
 Relevant Sections Analysis:
-{chr(10).join([f"Section {s['chunk_index']+1} (Relevance: {s['relevance_score']}/10):\n{s['summary']}" for s in relevant_summaries[:5]])}
+{sections_analysis}
 
 Please provide a thorough answer based on this analysis. If you need to see specific sections in detail, mention that."""
 
