@@ -1298,3 +1298,109 @@ body {
         font-size: 1em;
     }
 }
+
+/* Sources section styles */
+.sources-section {
+    margin-top: 16px;
+    background: #0d1117;
+    border: 1px solid #21262d;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.sources-header {
+    background: #161b22;
+    padding: 12px 16px;
+    border-bottom: 1px solid #21262d;
+}
+
+.sources-header h4 {
+    margin: 0 0 4px 0;
+    color: #58a6ff;
+    font-size: 0.9em;
+    font-weight: 600;
+}
+
+.sources-help {
+    margin: 0;
+    color: #8b949e;
+    font-size: 0.8em;
+}
+
+.source-item {
+    padding: 12px 16px;
+    border-bottom: 1px solid #21262d;
+}
+
+.source-item:last-child {
+    border-bottom: none;
+}
+
+.source-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+}
+
+.source-filename {
+    font-weight: 600;
+    color: #f0f6fc;
+    font-size: 0.9em;
+}
+
+.source-path {
+    color: #8b949e;
+    font-size: 0.8em;
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+}
+
+.source-type {
+    background: #21262d;
+    color: #8b949e;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.7em;
+    text-transform: uppercase;
+    font-weight: 600;
+}
+
+.csv-badge {
+    background: #0969da !important;
+    color: #ffffff !important;
+}
+
+.source-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.load-source-btn {
+    background: #238636;
+    color: #ffffff;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 0.8em;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    transition: background-color 0.2s ease;
+}
+
+.load-source-btn:hover {
+    background: #2ea043;
+}
+
+.load-source-btn:disabled {
+    background: #6e7681;
+    cursor: not-allowed;
+}
+
+.load-icon {
+    font-size: 0.9em;
+}

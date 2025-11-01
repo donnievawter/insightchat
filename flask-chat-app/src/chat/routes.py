@@ -1,5 +1,6 @@
 from flask import Blueprint, render_template, request, session, redirect
 import os
+import requests
 from .utils import prompt_model, fetch_repo_chunks, get_available_models, fetch_document_content
 
 chat_bp = Blueprint('chat', __name__)
@@ -41,6 +42,10 @@ def chat():
         prompt = request.form.get("prompt", "").strip()
         use_repo_docs = bool(request.form.get("use_repo_docs"))
         
+        # Check if there's pre-loaded context from Load Source button
+        loaded_context = request.form.get("loaded_context")
+        loaded_source_meta = request.form.get("loaded_source_meta")
+        
         if not prompt:
             return render_template("chat.html", 
                                  message_history=session.get("message_history", []),
@@ -56,6 +61,35 @@ def chat():
 
         # Add user message to history
         session["message_history"].append({"role": "user", "content": prompt})
+
+        # Clean up session to prevent cookie size issues - be more aggressive
+        def cleanup_message_history():
+            """Keep only the last 6 messages and aggressively remove metadata to stay under 4KB cookie limit"""
+            print(f"DEBUG: Session cleanup - current history length: {len(session['message_history'])}")
+            
+            # More aggressive message limit
+            if len(session["message_history"]) > 6:
+                session["message_history"] = session["message_history"][-6:]
+                print(f"DEBUG: Trimmed message history to last 6 messages")
+            
+            # Remove ALL large metadata from ALL messages except the very last one
+            for i, msg in enumerate(session["message_history"]):
+                if i < len(session["message_history"]) - 1:  # Keep metadata only for the last message
+                    if "rag_chunks" in msg:
+                        del msg["rag_chunks"]
+                        print(f"DEBUG: Removed rag_chunks from message {i}")
+                    if "sources" in msg:
+                        del msg["sources"] 
+                        print(f"DEBUG: Removed sources from message {i}")
+                        
+            # Calculate approximate session size
+            import json
+            import sys
+            session_str = json.dumps(dict(session), default=str)
+            session_size = sys.getsizeof(session_str.encode('utf-8'))
+            print(f"DEBUG: Estimated session size after cleanup: {session_size} bytes")
+        
+        cleanup_message_history()
 
         # Check if we can reuse context from recent conversation
         recent_full_context = None
@@ -77,6 +111,7 @@ def chat():
         # Fetch context from RAG if requested
         context_text = None
         rag_chunks = []
+        sources_found = []  # Initialize sources list
         
         if use_repo_docs:
             k = 5  # Default number of chunks
@@ -96,8 +131,35 @@ def chat():
                                      model=model,
                                      use_repo_docs=use_repo_docs)
             
+            # Check if user has pre-loaded context from Load Source button
+            if loaded_context:
+                print(f"DEBUG: Using pre-loaded context from Load Source button")
+                context_text = loaded_context
+                rag_chunks = []  # No need for regular RAG chunks
+                
+                # Parse source metadata if available
+                if loaded_source_meta:
+                    import json
+                    try:
+                        meta = json.loads(loaded_source_meta)
+                        source_path = meta.get('source_path', '')
+                        context_type = meta.get('context_type', 'unknown')
+                        print(f"DEBUG: Loaded context from {source_path} ({context_type})")
+                        
+                        # Add source info for display
+                        if source_path:
+                            file_ext = source_path.split('.')[-1].lower() if '.' in source_path else ''
+                            is_csv = file_ext == 'csv' or context_type == 'csv_full'
+                            sources_found.append({
+                                'path': source_path,
+                                'filename': source_path.split('/')[-1],
+                                'is_csv': is_csv,
+                                'file_type': file_ext
+                            })
+                    except json.JSONDecodeError:
+                        print("DEBUG: Could not parse loaded source metadata")
             # Decide whether to do new RAG search or reuse recent context
-            if recent_analyzed_docs:
+            elif recent_analyzed_docs:
                 print(f"DEBUG: Reusing recent document context instead of new RAG search")
                 # Skip RAG search, we'll fetch the same documents directly
                 analyze_documents = recent_analyzed_docs
@@ -109,68 +171,56 @@ def chat():
                 print(f"DEBUG: RAG context retrieved: {bool(context_text)}")  # Debug log
                 print(f"DEBUG: RAG chunks retrieved: {len(rag_chunks)}")  # Debug log
             
-            # Hybrid approach: Check if any found documents need full-document analysis
-            full_document_context = None
-            
-            # If reusing recent context, analyze_documents is already set
-            if not recent_analyzed_docs and rag_chunks:
-                analyze_documents = []
+            # Collect source information for later loading if user requests it
+            if rag_chunks:
+                unique_sources = set()
                 for chunk in rag_chunks:
                     source = chunk.get('metadata', {}).get('source', '')
-                    if source.startswith('analyze/'):
-                        analyze_documents.append(source)
-                        print(f"DEBUG: Found analyze/ document: {source}")
+                    if source and source not in unique_sources:
+                        unique_sources.add(source)
+                        # Determine file type for special handling hints
+                        file_ext = source.split('.')[-1].lower() if '.' in source else ''
+                        is_csv = file_ext == 'csv'
+                        sources_found.append({
+                            'path': source,
+                            'filename': source.split('/')[-1],
+                            'is_csv': is_csv,
+                            'file_type': file_ext
+                        })
+                print(f"DEBUG: Found {len(sources_found)} unique sources in chunks")
             
-            # Fetch full content for analyze/ documents (either new or reused)
-            if 'analyze_documents' in locals() and analyze_documents:
-                    full_docs = []
-                    for doc_source in set(analyze_documents):  # Remove duplicates
-                        try:
-                            print(f"DEBUG: Fetching full document: {doc_source}")
-                            full_content = fetch_document_content(doc_source, rag_api_url)
-                            if full_content:
-                                # Skip binary content (PDFs, images) - only use text-based documents for full context
-                                if isinstance(full_content, bytes):
-                                    print(f"DEBUG: Skipping binary document {doc_source} for full context (binary content not suitable for LLM)")
-                                    continue
-                                elif len(full_content) > 500000:  # Skip very large documents that might be binary-as-text
-                                    print(f"DEBUG: Skipping very large document {doc_source} ({len(full_content)} chars) - likely binary")
-                                    continue
-                                else:
-                                    full_docs.append(f"---\nFull Document: {doc_source}\n{full_content}\n")
-                                    print(f"DEBUG: Retrieved full document {doc_source}: {len(full_content)} chars")
-                        except Exception as e:
-                            print(f"DEBUG: Error fetching full document {doc_source}: {e}")
-                    
-                    if full_docs:
-                        full_document_context = """PRIORITY: Complete documents for comprehensive analysis (use these for accurate counts and detailed analysis):
-
-IMPORTANT INSTRUCTIONS FOR CSV/STRUCTURED DATA ANALYSIS:
-- When counting rows, count each line that contains data (including header)
-- When counting properties/records, count data rows only (exclude header)  
-- When analyzing CSV data, examine the complete structure systematically
-- For row counts: Count every line break to get total rows
-- For data counts: Count entries excluding the header row
-
-""" + "\n".join(full_docs)
-                        print(f"DEBUG: Full document context length: {len(full_document_context)} chars")
-            
-            # Build final context - prioritize full documents first
-            final_context_parts = []
-            if full_document_context:
-                final_context_parts.append(full_document_context)
+            # Use the RAG context if we have it
             if context_text:
-                final_context_parts.append("\n---\nAdditional context from document chunks:\n" + context_text)
-            
-            if final_context_parts:
-                combined_context = "\n\n".join(final_context_parts)
-                print(f"DEBUG: Combined context length: {len(combined_context)} chars")
+                combined_context = context_text
+                print(f"DEBUG: Using RAG chunks context length: {len(combined_context)} chars")
                 # Insert context as system message temporarily for this query
                 temp_history = [{"role": "system", "content": combined_context}] + session["message_history"]
             else:
                 print("DEBUG: No context retrieved from RAG")
                 temp_history = session["message_history"]
         else:
+            # RAG not enabled - just get available documents for Load button functionality
+            rag_api_url = os.getenv("RAG_API_URL")
+            if rag_api_url:
+                try:
+                    # Get available documents list
+                    response = requests.get(f"{rag_api_url}/documents")
+                    if response.status_code == 200:
+                        available_docs = response.json().get('documents', [])
+                        for doc in available_docs:
+                            # Determine file type for special handling hints
+                            file_ext = doc.split('.')[-1].lower() if '.' in doc else ''
+                            is_csv = file_ext == 'csv'
+                            sources_found.append({
+                                'path': doc,
+                                'filename': doc.split('/')[-1],
+                                'is_csv': is_csv,
+                                'file_type': file_ext
+                            })
+                        print(f"DEBUG: Found {len(sources_found)} available documents for loading")
+                except requests.RequestException as e:
+                    print(f"DEBUG: Could not fetch available documents: {e}")
+            
             print("DEBUG: RAG not enabled for this query")
             temp_history = session["message_history"]
 
@@ -202,29 +252,47 @@ ADDITIONAL INSTRUCTIONS FOR DOCUMENT ANALYSIS:
                 system_prompt=system_prompt
             )
             
-            # Add assistant response to permanent history with RAG chunks if available
+            # Add assistant response to permanent history with sources for potential loading
             assistant_message = {
                 "role": "assistant", 
                 "content": response_text
             }
             
-            # Include RAG chunks if they were used
+            # Include RAG chunks if they were used (for backwards compatibility)
             if rag_chunks:
                 assistant_message["rag_chunks"] = rag_chunks
             
-            # Include hybrid analysis information
-            if 'full_document_context' in locals() and full_document_context:
-                assistant_message["hybrid_analysis"] = True
-                assistant_message["analyzed_documents"] = list(set(analyze_documents)) if 'analyze_documents' in locals() else []
-                # Store the primary analyzed documents in session for context continuity
-                session["last_analyzed_documents"] = list(set(analyze_documents)) if 'analyze_documents' in locals() else []
+            # Include sources information for Load button functionality
+            if sources_found:
+                assistant_message["sources"] = sources_found
+                print(f"DEBUG: Stored {len(sources_found)} sources in assistant message")
                 
             session["message_history"].append(assistant_message)
+            
+            # Inline session cleanup to prevent cookie overflow
+            print(f"DEBUG: Post-response cleanup - history length: {len(session['message_history'])}")
+            if len(session["message_history"]) > 6:
+                session["message_history"] = session["message_history"][-6:]
+                print(f"DEBUG: Trimmed message history to last 6 messages")
+            
+            # Remove metadata from older messages
+            for i, msg in enumerate(session["message_history"]):
+                if i < len(session["message_history"]) - 1:
+                    if "rag_chunks" in msg:
+                        del msg["rag_chunks"]
+                    if "sources" in msg:
+                        del msg["sources"]
+            
             session.modified = True  # Mark session as modified
             
         except Exception as e:
             error_msg = f"Error: {str(e)}"
             session["message_history"].append({"role": "assistant", "content": error_msg})
+            
+            # Inline session cleanup for error case
+            if len(session["message_history"]) > 6:
+                session["message_history"] = session["message_history"][-6:]
+            
             session.modified = True
 
         # Get available models for the template
@@ -245,6 +313,96 @@ def reset():
 def health_check():
     """Health check endpoint for monitoring services"""
     return {"status": "healthy", "service": "insightchat"}, 200
+
+@chat_bp.route("/load_source", methods=["POST"])
+def load_source():
+    """Load expanded context for a specific source and re-run the last query"""
+    from flask import jsonify
+    from .utils import fetch_repo_chunks, fetch_document_content
+    
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No JSON data provided"}), 400
+    
+    source_path = data.get("source_path")
+    
+    if not source_path:
+        return jsonify({"error": "Missing source_path"}), 400
+    
+    # Get RAG API URL
+    rag_api_url = os.getenv("RAG_API_URL")
+    if not rag_api_url:
+        return jsonify({"error": "RAG API not configured"}), 503
+    
+    try:
+        # Check if this is a CSV file - if so, load full document
+        is_csv = source_path.endswith('.csv')
+        
+        if is_csv:
+            print(f"DEBUG: Loading full CSV document for: {source_path}")
+            # For CSV files, load the complete document
+            full_content = fetch_document_content(source_path, rag_api_url)
+            if full_content and not isinstance(full_content, bytes):
+                enhanced_context = f"""PRIORITY: Complete CSV document for comprehensive analysis:
+
+IMPORTANT INSTRUCTIONS FOR CSV ANALYSIS:
+- When counting rows, count each line including header (total rows in file)
+- When counting properties/records, count data rows only (exclude header)  
+- Examine the complete structure systematically
+- For row counts: Count every line break to get total rows
+- For data counts: Count entries excluding the header row
+
+---
+Full Document: {source_path}
+{full_content}
+---"""
+            else:
+                return jsonify({"error": "Could not load CSV content"}), 500
+        else:
+            print(f"DEBUG: Loading expanded chunks for source: {source_path}")
+            # Use the new RAG API endpoint to get all chunks for this document
+            import requests
+            
+            try:
+                response = requests.post(
+                    f"{rag_api_url}/get_chunks_for_document",
+                    json={
+                        "source": source_path,
+                        "limit": 0  # 0 means get all chunks
+                    },
+                    timeout=30
+                )
+                
+                if response.status_code == 200:
+                    chunks_data = response.json()
+                    chunks = chunks_data.get('chunks', [])
+                    
+                    if chunks:
+                        # Combine all chunks for this source
+                        chunk_contents = [chunk.get('content', '') for chunk in chunks]
+                        enhanced_context = f"""Expanded context from all chunks in {source_path}:
+
+{chr(10).join(chunk_contents)}"""
+                    else:
+                        return jsonify({"error": f"No chunks found for source: {source_path}"}), 404
+                else:
+                    print(f"DEBUG: RAG API returned status {response.status_code}: {response.text}")
+                    return jsonify({"error": f"RAG API error: {response.status_code}"}), 500
+                    
+            except requests.RequestException as e:
+                print(f"DEBUG: Error calling RAG API: {e}")
+                return jsonify({"error": f"Failed to fetch chunks: {str(e)}"}), 500
+        
+        return jsonify({
+            "success": True,
+            "enhanced_context": enhanced_context,
+            "source_path": source_path,
+            "context_type": "csv_full" if is_csv else "expanded_chunks"
+        })
+        
+    except Exception as e:
+        print(f"DEBUG: Error in load_source: {e}")
+        return jsonify({"error": str(e)}), 500
 
 @chat_bp.route("/test", methods=["GET"])
 def test_route():
