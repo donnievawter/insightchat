@@ -79,10 +79,8 @@
                             {% endif %}
                         </div>
                         <div class="source-actions">
-                            <button class="load-source-btn" 
-                                    data-source-path="{{ source.path }}"
-                                    data-message-index="{{ outer_loop.index0 }}"
-                                    onclick="loadSourceContext(this)">
+                            <button class="load-source-btn" data-source-path="{{ source.path }}"
+                                data-message-index="{{ outer_loop.index0 }}" onclick="loadSourceContext(this)">
                                 <span class="load-icon">📥</span>
                                 Load
                                 {% if source.is_csv %}(Full CSV){% else %}(All Chunks){% endif %}
@@ -1049,12 +1047,12 @@
         // Load source context and re-run query
         async function loadSourceContext(button) {
             const sourcePath = button.getAttribute('data-source-path');
-            
+
             // Disable button and show loading
             const originalText = button.innerHTML;
             button.disabled = true;
             button.innerHTML = '<span class="load-icon">⏳</span> Loading...';
-            
+
             try {
                 const response = await fetch('/load_source', {
                     method: 'POST',
@@ -1065,13 +1063,13 @@
                         source_path: sourcePath
                     })
                 });
-                
+
                 const result = await response.json();
-                
+
                 if (!response.ok) {
                     throw new Error(result.error || 'Failed to load source');
                 }
-                
+
                 // Store the loaded context in a hidden form field
                 let contextInput = document.getElementById('loaded_context');
                 if (!contextInput) {
@@ -1081,7 +1079,7 @@
                     contextInput.name = 'loaded_context';
                     document.getElementById('chat-form').appendChild(contextInput);
                 }
-                
+
                 // Store metadata about the loaded source
                 let sourceMetaInput = document.getElementById('loaded_source_meta');
                 if (!sourceMetaInput) {
@@ -1091,31 +1089,31 @@
                     sourceMetaInput.name = 'loaded_source_meta';
                     document.getElementById('chat-form').appendChild(sourceMetaInput);
                 }
-                
+
                 contextInput.value = result.enhanced_context;
                 sourceMetaInput.value = JSON.stringify({
                     source_path: result.source_path,
                     context_type: result.context_type
                 });
-                
+
                 // Update button to show success
                 button.innerHTML = '<span class="load-icon">✅</span> Loaded';
                 button.style.backgroundColor = '#28a745';
                 button.style.color = 'white';
-                
+
                 // Show a temporary notification
                 showNotification(`Loaded context from ${sourcePath.split('/').pop()}. It will be included with your next question.`, 'success');
-                
+
             } catch (error) {
                 console.error('Error loading source:', error);
                 showNotification('Error loading source: ' + error.message, 'error');
-                
+
                 // Restore button
                 button.disabled = false;
                 button.innerHTML = originalText;
             }
         }
-        
+
         function showNotification(message, type = 'info') {
             const notification = document.createElement('div');
             notification.className = `notification notification-${type}`;
@@ -1135,9 +1133,9 @@
                 ${type === 'error' ? 'background-color: #dc3545;' : ''}
                 ${type === 'info' ? 'background-color: #17a2b8;' : ''}
             `;
-            
+
             document.body.appendChild(notification);
-            
+
             // Remove after 5 seconds
             setTimeout(() => {
                 if (notification.parentNode) {
