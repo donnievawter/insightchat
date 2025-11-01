@@ -241,6 +241,7 @@
             const textExtensions = ['txt', 'md', 'py', 'js', 'html', 'css', 'json', 'xml', 'yaml', 'yml', 'sh', 'conf', 'log'];
             const pdfExtensions = ['pdf'];
             const csvExtensions = ['csv', 'tsv'];
+            const docxExtensions = ['docx', 'doc'];
 
             if (imageExtensions.includes(fileExtension)) {
                 // Display image
@@ -251,6 +252,9 @@
             } else if (csvExtensions.includes(fileExtension)) {
                 // Display CSV as table
                 displayCsvDocument(source, contentElement);
+            } else if (docxExtensions.includes(fileExtension)) {
+                // Display DOCX document
+                displayDocxDocument(source, contentElement);
             } else if (textExtensions.includes(fileExtension)) {
                 // Display as text
                 displayTextDocument(source, startIndex, contentElement);
@@ -593,6 +597,93 @@
                 .catch(error => {
                     alert('Error opening CSV file: ' + error.message);
                 });
+        }
+
+        // Display DOCX documents
+        function displayDocxDocument(source, contentElement) {
+            const fileName = decodeURIComponent(source.split('/').pop());
+            contentElement.innerHTML = `
+                <div class="docx-document-container">
+                    <div class="docx-header">
+                        <div class="docx-title">
+                            <span class="docx-icon">📄</span>
+                            <div class="docx-info">
+                                <div class="docx-name">${escapeHtml(fileName)}</div>
+                                <div class="docx-source">Source: ${escapeHtml(decodeURIComponent(source))}</div>
+                            </div>
+                        </div>
+                        <div class="docx-actions">
+                            <button onclick="downloadDocx('${encodeURIComponent(source)}')" class="docx-btn" title="Download DOCX">
+                                <span class="docx-btn-icon">⬇</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="docx-content-area">
+                        <div class="docx-loading">
+                            <div class="docx-loading-spinner"></div>
+                            <div>Extracting document content...</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // Request DOCX content extraction from backend
+            fetch('{{ url_for("chat.get_document") }}?source=' + encodeURIComponent(source) + '&format=text')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('DOCX file not found or not accessible');
+                    }
+                    return response.text();
+                })
+                .then(textContent => {
+                    const docxContentArea = contentElement.querySelector('.docx-content-area');
+                    if (textContent && textContent.trim()) {
+                        // Convert line breaks to HTML and preserve formatting
+                        const formattedContent = textContent
+                            .replace(/\n\n+/g, '</p><p>')
+                            .replace(/\n/g, '<br>')
+                            .replace(/^\s*/, '<p>')
+                            .replace(/\s*$/, '</p>');
+
+                        docxContentArea.innerHTML = `
+                            <div class="docx-text-content">
+                                ${formattedContent}
+                            </div>
+                        `;
+                    } else {
+                        docxContentArea.innerHTML = `
+                            <div class="docx-error">
+                                <div class="docx-error-icon">⚠️</div>
+                                <div class="docx-error-text">
+                                    <strong>Content extraction failed</strong><br>
+                                    Unable to extract readable text from this DOCX file.
+                                </div>
+                            </div>
+                        `;
+                    }
+                })
+                .catch(error => {
+                    const docxContentArea = contentElement.querySelector('.docx-content-area');
+                    docxContentArea.innerHTML = `
+                        <div class="docx-error">
+                            <div class="docx-error-icon">⚠️</div>
+                            <div class="docx-error-text">
+                                <strong>Error loading DOCX:</strong><br>
+                                ${error.message}
+                            </div>
+                        </div>
+                    `;
+                });
+        }
+
+        // DOCX utility functions
+        function downloadDocx(source) {
+            const link = document.createElement('a');
+            link.href = '{{ url_for("chat.get_document") }}?source=' + encodeURIComponent(source);
+            link.download = decodeURIComponent(source.split('/').pop());
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
         }
 
         // Simple markdown to HTML converter

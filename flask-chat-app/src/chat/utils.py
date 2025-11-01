@@ -266,12 +266,36 @@ def prompt_model(model, prompt, history=None, system_prompt="You are a helpful a
         system_prompt=system_prompt,
         temperature=0.7
     )
-
+    '''
+    # Debug logging for payload
+    print("DEBUG: ===== OLLAMA PAYLOAD DEBUG =====")
+    print("DEBUG: Model:", payload.get('model'))
+    print("DEBUG: Number of messages:", len(payload.get('messages', [])))
+    
+    for i, msg in enumerate(payload.get('messages', [])):
+        role = msg.get('role', 'unknown')
+        content = msg.get('content', '')
+        print(f"DEBUG: Message {i}: Role={role}, Content length={len(content)}")
+        
+        if role == 'system':
+            print(f"DEBUG: System message preview (first 1000 chars):\n{content[:1000]}")
+        elif role == 'user':
+            print(f"DEBUG: User message: {content}")
+        elif role == 'assistant':
+            print(f"DEBUG: Assistant message preview: {content[:200]}")
+    
+    print("DEBUG: ===== END PAYLOAD DEBUG =====")
+    '''
     try:
-        timeout = 120
+        # Configurable timeout - default 600 seconds (10 minutes) for large context processing
+        timeout = int(os.getenv("OLLAMA_TIMEOUT", 600))
+        print(f"DEBUG: Using Ollama timeout: {timeout} seconds")
         response = requests.post(ollama_url, json=payload, timeout=timeout)
         response.raise_for_status()
         content = response.json().get("message", {}).get("content", "").strip()
+    except requests.exceptions.Timeout as e:
+        timeout_min = timeout // 60
+        content = f"⏰ Request timed out after {timeout} seconds ({timeout_min} minutes). The model may be processing a very large context. Try:\n\n1. Using a model with larger context window (e.g., qwen3-coder:30b)\n2. Reducing document size\n3. Breaking complex queries into smaller parts\n\nError details: {str(e)}"
     except Exception as e:
         content = f"Error communicating with Ollama: {str(e)}"
 
