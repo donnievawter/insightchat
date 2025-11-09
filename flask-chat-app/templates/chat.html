@@ -273,6 +273,9 @@
             const pdfExtensions = ['pdf'];
             const csvExtensions = ['csv', 'tsv'];
             const docxExtensions = ['docx', 'doc'];
+            const emailExtensions = ['eml', 'emlx'];
+
+
 
             if (imageExtensions.includes(fileExtension)) {
                 // Display image
@@ -289,6 +292,9 @@
             } else if (textExtensions.includes(fileExtension)) {
                 // Display as text
                 displayTextDocument(source, startIndex, contentElement);
+            } else if (emailExtensions.includes(fileExtension)) {
+                // Display email
+                displayEmailDocument(source, contentElement);
             } else {
                 // Try to display as text first, fallback to binary info
                 displayTextDocument(source, startIndex, contentElement, true);
@@ -700,6 +706,61 @@
                             <div class="docx-error-icon">⚠️</div>
                             <div class="docx-error-text">
                                 <strong>Error loading DOCX:</strong><br>
+                                ${error.message}
+                            </div>
+                        </div>
+                    `;
+                });
+        }
+
+        // Display email documents
+        function displayEmailDocument(source, contentElement) {
+            contentElement.innerHTML = `
+                <div class="email-document-container">
+                    <div class="email-content-area">
+                        <div class="email-loading">
+                            <div class="email-loading-spinner"></div>
+                            <div>Loading email...</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // Request rendered email HTML via our Flask proxy endpoint
+            fetch('{{ url_for("chat.render_email") }}?source=' + encodeURIComponent(source))
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Email file not found or not accessible');
+                    }
+                    return response.text();
+                })
+                .then(renderedHtml => {
+                    const emailContentArea = contentElement.querySelector('.email-content-area');
+                    if (renderedHtml && renderedHtml.trim()) {
+                        emailContentArea.innerHTML = `
+                            <div class="email-rendered-content">
+                                ${renderedHtml}
+                            </div>
+                        `;
+                    } else {
+                        emailContentArea.innerHTML = `
+                            <div class="email-error">
+                                <div class="email-error-icon">⚠️</div>
+                                <div class="email-error-text">
+                                    <strong>Content rendering failed</strong><br>
+                                    Unable to render this email file.
+                                </div>
+                            </div>
+                        `;
+                    }
+                })
+                .catch(error => {
+                    const emailContentArea = contentElement.querySelector('.email-content-area');
+                    emailContentArea.innerHTML = `
+                        <div class="email-error">
+                            <div class="email-error-icon">⚠️</div>
+                            <div class="email-error-text">
+                                <strong>Error loading email:</strong><br>
                                 ${error.message}
                             </div>
                         </div>

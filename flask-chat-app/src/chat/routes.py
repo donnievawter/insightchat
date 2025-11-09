@@ -34,7 +34,8 @@ def chat():
                              message_history=session["message_history"],
                              available_models=available_models,
                              model=current_model,
-                             use_repo_docs=current_use_repo_docs)
+                             use_repo_docs=current_use_repo_docs,
+                             RAG_API_URL=os.getenv("RAG_API_URL", ""))
 
     if request.method == "POST":
         # Get form data
@@ -49,7 +50,11 @@ def chat():
         if not prompt:
             return render_template("chat.html", 
                                  message_history=session.get("message_history", []),
-                                 error="Please enter a message")
+                                 error="Please enter a message",
+                                 available_models=get_available_models(),
+                                 model=model,
+                                 use_repo_docs=use_repo_docs,
+                                 RAG_API_URL=os.getenv("RAG_API_URL", ""))
 
         # Initialize message history if not exists
         if "message_history" not in session:
@@ -129,7 +134,8 @@ def chat():
                                      message_history=session["message_history"],
                                      available_models=get_available_models(),
                                      model=model,
-                                     use_repo_docs=use_repo_docs)
+                                     use_repo_docs=use_repo_docs,
+                                     RAG_API_URL=os.getenv("RAG_API_URL", ""))
             
             # Check if user has pre-loaded context from Load Source button
             if loaded_context:
@@ -302,7 +308,8 @@ ADDITIONAL INSTRUCTIONS FOR DOCUMENT ANALYSIS:
                              message_history=session["message_history"],
                              available_models=available_models,
                              model=model,
-                             use_repo_docs=use_repo_docs)
+                             use_repo_docs=use_repo_docs,
+                             RAG_API_URL=os.getenv("RAG_API_URL", ""))
 
 @chat_bp.route("/reset", methods=["POST"])
 def reset():
@@ -481,6 +488,66 @@ def get_document():
         
     except Exception as e:
         print(f"DEBUG: Exception in document route for {decoded_source}: {type(e).__name__}: {e}")
+        import traceback
+        print(f"DEBUG: Full traceback: {traceback.format_exc()}")
+        return jsonify({"error": str(e)}), 500
+
+@chat_bp.route("/render_email", methods=["GET"])
+def render_email():
+    """Proxy endpoint to render email files via RAG API"""
+    from flask import jsonify
+    import requests
+    
+    source = request.args.get("source")
+    print(f"DEBUG: Email render route called with source: '{source}'")
+    
+    if not source:
+        print("DEBUG: No source parameter provided")
+        return jsonify({"error": "No source specified"}), 400
+    
+    # URL decode the source
+    import urllib.parse
+    decoded_source = urllib.parse.unquote(source)
+    print(f"DEBUG: Decoded source: '{decoded_source}'")
+    
+    rag_api_url = os.getenv("RAG_API_URL")
+    print(f"DEBUG: RAG_API_URL: {rag_api_url}")
+    
+    if not rag_api_url:
+        print("DEBUG: RAG_API_URL not configured")
+        return jsonify({"error": "RAG API not configured"}), 503
+    
+    try:
+        # Call RAG API's render_email endpoint - it expects POST with JSON
+        render_url = f"{rag_api_url}/render_email"
+        print(f"DEBUG: Calling RAG API: {render_url}")
+        
+        # Send POST request with file_path in JSON body
+        response = requests.post(
+            render_url, 
+            json={"file_path": decoded_source},
+            timeout=30
+        )
+        print(f"DEBUG: RAG API render_email returned status: {response.status_code}")
+        
+        if response.status_code == 200:
+            # Log the HTML content for debugging
+            html_content = response.text
+            print(f"DEBUG: Received HTML content, length: {len(html_content)} chars")
+            print(f"DEBUG: First 500 chars of HTML: {html_content[:500]}")
+            print(f"DEBUG: Last 200 chars of HTML: {html_content[-200:]}")
+            
+            # Return the rendered HTML
+            return html_content, 200, {'Content-Type': 'text/html; charset=utf-8'}
+        else:
+            print(f"DEBUG: RAG API error: {response.text}")
+            return jsonify({"error": f"RAG API returned {response.status_code}"}), response.status_code
+            
+    except requests.RequestException as e:
+        print(f"DEBUG: Request exception calling RAG API: {e}")
+        return jsonify({"error": f"Failed to connect to RAG API: {str(e)}"}), 503
+    except Exception as e:
+        print(f"DEBUG: Exception in render_email: {type(e).__name__}: {e}")
         import traceback
         print(f"DEBUG: Full traceback: {traceback.format_exc()}")
         return jsonify({"error": str(e)}), 500
