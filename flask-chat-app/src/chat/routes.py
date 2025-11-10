@@ -472,6 +472,8 @@ def get_document():
             'html': 'text/html',
             'css': 'text/css',
             'js': 'application/javascript',
+            'eml': 'message/rfc822',
+            'emlx': 'message/rfc822',
         }
         
         content_type = content_type_map.get(file_extension, 'text/plain; charset=utf-8')
@@ -494,9 +496,12 @@ def get_document():
 
 @chat_bp.route("/render_email", methods=["GET"])
 def render_email():
-    """Proxy endpoint to render email files via RAG API"""
+    """Render an email file as formatted HTML for viewing in browser"""
     from flask import jsonify
     import requests
+    from email import policy
+    from email.parser import BytesParser
+    import html
     
     source = request.args.get("source")
     print(f"DEBUG: Email render route called with source: '{source}'")
@@ -518,34 +523,190 @@ def render_email():
         return jsonify({"error": "RAG API not configured"}), 503
     
     try:
-        # Call RAG API's render_email endpoint - it expects POST with JSON
-        render_url = f"{rag_api_url}/render_email"
-        print(f"DEBUG: Calling RAG API: {render_url}")
+        # Get the raw email file from RAG API's /document endpoint
+        from .utils import fetch_document_content
+        email_content = fetch_document_content(decoded_source, rag_api_url)
+        print(f"DEBUG: Retrieved email file, size: {len(email_content) if email_content else 0} bytes")
         
-        # Send POST request with file_path in JSON body
-        response = requests.post(
-            render_url, 
-            json={"file_path": decoded_source},
-            timeout=30
-        )
-        print(f"DEBUG: RAG API render_email returned status: {response.status_code}")
+        if not email_content:
+            print("DEBUG: No email content retrieved")
+            return jsonify({"error": "Email file not found"}), 404
         
-        if response.status_code == 200:
-            # Log the HTML content for debugging
-            html_content = response.text
-            print(f"DEBUG: Received HTML content, length: {len(html_content)} chars")
-            print(f"DEBUG: First 500 chars of HTML: {html_content[:500]}")
-            print(f"DEBUG: Last 200 chars of HTML: {html_content[-200:]}")
-            
-            # Return the rendered HTML
-            return html_content, 200, {'Content-Type': 'text/html; charset=utf-8'}
+        # Ensure we have bytes for the email parser
+        if isinstance(email_content, str):
+            email_content = email_content.encode('utf-8')
+        
+        # Parse the email
+        from io import BytesIO
+        email_buffer = BytesIO(email_content)
+        
+        # Mac .emlx files have a header line with message length, skip it
+        first_line = email_buffer.readline()
+        # If it looks like a length header (just digits), it's .emlx format
+        if first_line.strip().isdigit():
+            # Continue reading from current position (after the length line)
+            msg = BytesParser(policy=policy.default).parse(email_buffer)
         else:
-            print(f"DEBUG: RAG API error: {response.text}")
-            return jsonify({"error": f"RAG API returned {response.status_code}"}), response.status_code
+            # Regular .eml file, rewind and parse from beginning
+            email_buffer.seek(0)
+            msg = BytesParser(policy=policy.default).parse(email_buffer)
+        
+        print(f"DEBUG: Email parsed successfully")
+        
+        # Extract metadata
+        subject = html.escape(msg.get('subject', '(No Subject)'))
+        from_addr = html.escape(msg.get('from', '(Unknown Sender)'))
+        to_addr = html.escape(msg.get('to', '(Unknown Recipient)'))
+        date = html.escape(msg.get('date', '(No Date)'))
+        
+        # Extract body content
+        body_text = ""
+        body_html = None
+        
+        if msg.is_multipart():
+            # Handle multipart messages
+            for part in msg.walk():
+                content_type = part.get_content_type()
+                content_disposition = str(part.get('Content-Disposition', ''))
+                
+                # Skip attachments
+                if 'attachment' in content_disposition:
+                    continue
+                    
+                # Get plain text parts
+                if content_type == 'text/plain':
+                    try:
+                        text = part.get_content()
+                        if text:
+                            body_text += text + "\n"
+                    except Exception as e:
+                        print(f"DEBUG: Error getting plain text part: {e}")
+                        pass
+                        
+                # Get HTML parts
+                elif content_type == 'text/html':
+                    try:
+                        html_content = part.get_content()
+                        body_html = html_content
+                    except Exception as e:
+                        print(f"DEBUG: Error getting HTML part: {e}")
+                        pass
+        else:
+            # Simple non-multipart message
+            content_type = msg.get_content_type()
+            if content_type == 'text/plain':
+                try:
+                    body_text = msg.get_content()
+                except Exception as e:
+                    print(f"DEBUG: Error getting plain text content: {e}")
+                    pass
+            elif content_type == 'text/html':
+                try:
+                    body_html = msg.get_content()
+                except Exception as e:
+                    print(f"DEBUG: Error getting HTML content: {e}")
+                    pass
+        
+        # Render HTML response
+        if body_html:
+            # Use the HTML version if available
+            email_body = f"""
+                <div style="border: 1px solid #ddd; padding: 15px; margin-top: 15px; background: white;">
+                    {body_html}
+                </div>
+            """
+        else:
+            # Use plain text, convert to HTML with line breaks
+            escaped_text = html.escape(body_text.strip())
+            formatted_text = escaped_text.replace('\n', '<br>\n')
+            email_body = f"""
+                <div style="border: 1px solid #ddd; padding: 15px; margin-top: 15px; background: white; white-space: pre-wrap; font-family: monospace;">
+                    {formatted_text}
+                </div>
+            """
+        
+        # Build email content for embedding in modal (not a full HTML page)
+        html_content = f"""
+<style>
+    .email-container {{
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }}
+    .email-header {{
+        background: #f8f9fa;
+        padding: 20px;
+        border-bottom: 2px solid #e9ecef;
+    }}
+    .email-subject {{
+        font-size: 24px;
+        font-weight: 600;
+        margin: 0 0 15px 0;
+        color: #212529;
+    }}
+    .email-meta {{
+        display: grid;
+        gap: 8px;
+        font-size: 14px;
+        color: #495057;
+    }}
+    .email-meta-row {{
+        display: flex;
+    }}
+    .email-meta-label {{
+        font-weight: 600;
+        min-width: 80px;
+        color: #6c757d;
+    }}
+    .email-meta-value {{
+        flex: 1;
+    }}
+    .email-body {{
+        padding: 20px;
+    }}
+    .file-info {{
+        background: #e9ecef;
+        padding: 10px 20px;
+        border-top: 1px solid #ddd;
+        font-size: 12px;
+        color: #6c757d;
+    }}
+</style>
+<div class="email-container">
+    <div class="email-header">
+        <h1 class="email-subject">{subject}</h1>
+        <div class="email-meta">
+            <div class="email-meta-row">
+                <span class="email-meta-label">From:</span>
+                <span class="email-meta-value">{from_addr}</span>
+            </div>
+            <div class="email-meta-row">
+                <span class="email-meta-label">To:</span>
+                <span class="email-meta-value">{to_addr}</span>
+            </div>
+            <div class="email-meta-row">
+                <span class="email-meta-label">Date:</span>
+                <span class="email-meta-value">{date}</span>
+            </div>
+        </div>
+    </div>
+    <div class="email-body">
+        {email_body}
+    </div>
+    <div class="file-info">
+        File: {html.escape(decoded_source)}
+    </div>
+</div>
+        """
+        
+        print(f"DEBUG: Rendered email content, length: {len(html_content)} chars")
+        return html_content, 200, {'Content-Type': 'text/html; charset=utf-8'}
             
     except requests.RequestException as e:
-        print(f"DEBUG: Request exception calling RAG API: {e}")
-        return jsonify({"error": f"Failed to connect to RAG API: {str(e)}"}), 503
+        print(f"DEBUG: Request exception getting email file: {e}")
+        return jsonify({"error": f"Failed to retrieve email file: {str(e)}"}), 503
     except Exception as e:
         print(f"DEBUG: Exception in render_email: {type(e).__name__}: {e}")
         import traceback
