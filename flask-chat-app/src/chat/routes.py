@@ -1,9 +1,12 @@
-from flask import Blueprint, render_template, request, session, redirect
+from flask import Blueprint, render_template, request, session, redirect, jsonify
 import os
 import requests
+import asyncio
 from .utils import prompt_model, fetch_repo_chunks, get_available_models, fetch_document_content
+from .whisper_client import WhisperClient
 
 chat_bp = Blueprint('chat', __name__)
+whisper_client = WhisperClient()
 
 @chat_bp.route("/chat", methods=["GET", "POST"])
 def chat():
@@ -709,6 +712,59 @@ def render_email():
         return jsonify({"error": f"Failed to retrieve email file: {str(e)}"}), 503
     except Exception as e:
         print(f"DEBUG: Exception in render_email: {type(e).__name__}: {e}")
+        return jsonify({"error": f"Error rendering email: {str(e)}"}), 500
+
+
+@chat_bp.route("/transcribe", methods=["POST"])
+def transcribe_audio():
+    """
+    Transcribe audio file to text using Whisper.
+    """
+    try:
+        # Check if file was uploaded
+        if 'file' not in request.files:
+            return jsonify({"error": "No audio file provided"}), 400
+        
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({"error": "No file selected"}), 400
+        
+        # Read audio file
+        audio_content = file.read()
+        
+        # Get optional language parameter
+        language = request.form.get('language')
+        
+        # Run async transcription in sync context
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            transcription_result = loop.run_until_complete(
+                whisper_client.transcribe(
+                    audio_file=audio_content,
+                    filename=file.filename or "audio.webm",
+                    language=language,
+                )
+            )
+        finally:
+            loop.close()
+        
+        transcribed_text = transcription_result.get("text", "")
+        
+        if not transcribed_text:
+            return jsonify({"error": "No text was transcribed from the audio file"}), 400
+        
+        print(f"Transcription successful: {transcribed_text[:100]}...")
+        
+        return jsonify({
+            "text": transcribed_text,
+            "language": transcription_result.get("language"),
+            "duration": transcription_result.get("duration"),
+        })
+        
+    except Exception as e:
+        print(f"Error transcribing audio: {str(e)}")
+        return jsonify({"error": f"Error transcribing audio: {str(e)}"}), 500
         import traceback
         print(f"DEBUG: Full traceback: {traceback.format_exc()}")
         return jsonify({"error": str(e)}), 500

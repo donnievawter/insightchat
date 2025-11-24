@@ -136,13 +136,30 @@
 
         <form id="chat-form" method="POST" action="{{ url_for('chat.chat') }}">
             <div class="input-row">
-                <input type="text" name="prompt" placeholder="Type your message..." required>
+                <div class="input-with-audio">
+                    <input type="text" name="prompt" id="prompt-input" placeholder="Type your message..." required>
+                    <div class="audio-controls">
+                        <button type="button" id="recordBtn" class="audio-btn" title="Start Recording">
+                            🎤
+                        </button>
+                        <button type="button" id="stopBtn" class="audio-btn hidden" disabled title="Stop Recording">
+                            ⏹️
+                        </button>
+                    </div>
+                </div>
                 <button type="submit">Send</button>
             </div>
+            <div id="recording-status" class="recording-status hidden"></div>
         </form>
     </div>
 
     <script>
+        // Audio recording state
+        let mediaRecorder;
+        let audioChunks = [];
+        let startTime;
+        let timerInterval;
+
         document.addEventListener('DOMContentLoaded', function () {
             // Auto-scroll to bottom of messages
             const chatMessages = document.getElementById('chat-messages');
@@ -155,6 +172,9 @@
             if (promptInput) {
                 promptInput.focus();
             }
+
+            // Initialize audio recording buttons
+            initializeAudioRecording();
 
             // Handle form submission to disable/enable send button
             const chatForm = document.getElementById('chat-form');
@@ -185,6 +205,141 @@
                 }
             });
         });
+
+        // Audio Recording Functions
+        function initializeAudioRecording() {
+            const recordBtn = document.getElementById('recordBtn');
+            const stopBtn = document.getElementById('stopBtn');
+
+            if (recordBtn) {
+                recordBtn.addEventListener('click', startRecording);
+            }
+            if (stopBtn) {
+                stopBtn.addEventListener('click', stopRecording);
+            }
+        }
+
+        function updateRecordingStatus(message, type = 'info') {
+            const status = document.getElementById('recording-status');
+            if (status) {
+                status.textContent = message;
+                status.className = `recording-status ${type}`;
+                status.classList.remove('hidden');
+            }
+        }
+
+        function hideRecordingStatus() {
+            const status = document.getElementById('recording-status');
+            if (status) {
+                status.classList.add('hidden');
+            }
+        }
+
+        async function startRecording() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+                // Try different formats
+                let mimeType = 'audio/ogg;codecs=opus';
+                if (!MediaRecorder.isTypeSupported(mimeType)) {
+                    mimeType = 'audio/mp4';
+                }
+                if (!MediaRecorder.isTypeSupported(mimeType)) {
+                    mimeType = 'audio/webm;codecs=opus';
+                }
+                if (!MediaRecorder.isTypeSupported(mimeType)) {
+                    mimeType = 'audio/webm';
+                }
+
+                mediaRecorder = new MediaRecorder(stream, { mimeType: mimeType });
+                audioChunks = [];
+
+                mediaRecorder.ondataavailable = (event) => {
+                    audioChunks.push(event.data);
+                };
+
+                mediaRecorder.onstop = async () => {
+                    let extension = '.webm';
+                    if (mimeType.includes('ogg')) extension = '.ogg';
+                    else if (mimeType.includes('mp4')) extension = '.m4a';
+
+                    const audioBlob = new Blob(audioChunks, { type: mimeType });
+                    await uploadAudio(audioBlob, extension);
+
+                    // Stop all tracks
+                    stream.getTracks().forEach(track => track.stop());
+                };
+
+                mediaRecorder.start();
+
+                const recordBtn = document.getElementById('recordBtn');
+                const stopBtn = document.getElementById('stopBtn');
+                
+                recordBtn.classList.add('recording');
+                recordBtn.classList.add('hidden');
+                stopBtn.classList.remove('hidden');
+                stopBtn.disabled = false;
+
+                updateRecordingStatus('🎙️ Recording... Click stop when done', 'processing');
+
+            } catch (error) {
+                console.error('Error accessing microphone:', error);
+                updateRecordingStatus('❌ Error: Could not access microphone', 'error');
+            }
+        }
+
+        function stopRecording() {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+                const stopBtn = document.getElementById('stopBtn');
+                stopBtn.disabled = true;
+                updateRecordingStatus('Processing audio...', 'processing');
+            }
+        }
+
+        async function uploadAudio(audioBlob, extension) {
+            try {
+                const formData = new FormData();
+                formData.append('file', audioBlob, `recording${extension}`);
+
+                updateRecordingStatus('Transcribing audio...', 'processing');
+
+                const response = await fetch('/transcribe', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Transcription failed');
+                }
+
+                const result = await response.json();
+
+                // Update input with transcription
+                const promptInput = document.getElementById('prompt-input');
+                if (promptInput) {
+                    promptInput.value = result.text;
+                    promptInput.focus();
+                }
+
+                updateRecordingStatus('✅ Transcription complete!', 'success');
+                setTimeout(hideRecordingStatus, 3000);
+
+            } catch (error) {
+                console.error('Error uploading audio:', error);
+                updateRecordingStatus(`❌ Error: ${error.message}`, 'error');
+            } finally {
+                // Reset recording UI
+                const recordBtn = document.getElementById('recordBtn');
+                const stopBtn = document.getElementById('stopBtn');
+                
+                recordBtn.classList.remove('recording');
+                recordBtn.classList.remove('hidden');
+                stopBtn.classList.add('hidden');
+                stopBtn.disabled = true;
+            }
+        }
 
         // Toggle chunks display
         function toggleChunks(messageIndex) {

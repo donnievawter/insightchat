@@ -5,6 +5,7 @@ A clean, modern AI-powered chat application with optional RAG (Retrieval-Augment
 ## Features
 
 - 🤖 **Multiple AI Models**: Support for various Ollama models (Llama 3.2, Llama 3.1, Mistral, CodeLlama, etc.)
+- 🎙️ **Voice Input**: Record audio and automatically transcribe to text using Whisper
 - 🔍 **RAG Integration**: Optional context enhancement using external document retrieval
 - 💬 **Clean Chat Interface**: Modern, responsive web interface
 - ⚡ **Fast & Local**: Runs entirely on your local machine with Ollama
@@ -73,6 +74,8 @@ A clean, modern AI-powered chat application with optional RAG (Retrieval-Augment
 - `FLASK_SECRET_KEY`: Secret key for Flask sessions
 - `OLLAMA_URL`: Ollama API endpoint (default: `http://localhost:11434/api/chat`)
 - `RAG_API_URL`: Optional RAG service endpoint
+- `WHISPER_URL`: Whisper transcription service endpoint (default: `https://whisper.hlab.cam`)
+- `SERVICE_TIMEOUT`: Timeout for external services in seconds (default: `60`)
 - `FLASK_DEBUG`: Debug mode (default: `True`)
 
 ### Available Models
@@ -84,6 +87,18 @@ The application supports any model available through Ollama:
 - `mistral:latest` - Mistral
 - `codellama:latest` - Code Llama
 - And many more...
+
+## Voice Input
+
+InsightChat supports voice input for hands-free interaction:
+
+1. Click the microphone (🎤) button next to the text input
+2. Speak your question
+3. Click the stop (⏹️) button when finished
+4. The transcribed text will automatically appear in the input field
+5. Click "Send" to submit to the AI
+
+**Requirements**: A Whisper transcription service must be configured via `WHISPER_URL` in your `.env` file.
 
 ## RAG Integration
 
@@ -104,7 +119,8 @@ insightchat/
 │   │   ├── app.py              # Main Flask application
 │   │   ├── chat/
 │   │   │   ├── routes.py       # Chat routes and logic
-│   │   │   └── utils.py        # Utility functions
+│   │   │   ├── utils.py        # Utility functions
+│   │   │   └── whisper_client.py # Whisper API client
 │   │   └── static/
 │   │       └── css/
 │   │           └── style.css   # Styles
