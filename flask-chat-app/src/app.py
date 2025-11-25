@@ -1,5 +1,6 @@
 from flask import Flask, redirect, url_for
 import os
+import logging
 from pathlib import Path
 from dotenv import load_dotenv
 from chat.routes import chat_bp
@@ -31,6 +32,15 @@ app = Flask(__name__,
            template_folder=str(app_root / "templates"),
            static_folder=str(Path(__file__).parent / "static"))
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "dev-secret-key-change-in-production")
+
+# Filter out health check requests from logs
+class HealthCheckFilter(logging.Filter):
+    def filter(self, record):
+        return '/health' not in record.getMessage()
+
+# Apply filter to werkzeug logger (Flask's development server logger)
+log = logging.getLogger('werkzeug')
+log.addFilter(HealthCheckFilter())
 
 app.register_blueprint(chat_bp)
 
