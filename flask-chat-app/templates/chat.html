@@ -176,6 +176,9 @@
             // Initialize audio recording buttons
             initializeAudioRecording();
 
+            // Render markdown in assistant messages
+            renderMarkdownInMessages();
+
             // Handle form submission to disable/enable send button
             const chatForm = document.getElementById('chat-form');
             const sendButton = chatForm ? chatForm.querySelector('button[type="submit"]') : null;
@@ -274,7 +277,7 @@
 
                 const recordBtn = document.getElementById('recordBtn');
                 const stopBtn = document.getElementById('stopBtn');
-                
+
                 recordBtn.classList.add('recording');
                 recordBtn.classList.add('hidden');
                 stopBtn.classList.remove('hidden');
@@ -333,7 +336,7 @@
                 // Reset recording UI
                 const recordBtn = document.getElementById('recordBtn');
                 const stopBtn = document.getElementById('stopBtn');
-                
+
                 recordBtn.classList.remove('recording');
                 recordBtn.classList.remove('hidden');
                 stopBtn.classList.add('hidden');
@@ -372,6 +375,36 @@
                     expandBtn.textContent = 'Show More';
                 }
             }
+        }
+
+        // Render markdown in assistant messages
+        function renderMarkdownInMessages() {
+            const assistantMessages = document.querySelectorAll('.message.assistant .message-content');
+
+            assistantMessages.forEach(messageContent => {
+                // Skip if already processed
+                if (messageContent.dataset.markdownProcessed === 'true') {
+                    return;
+                }
+
+                const text = messageContent.textContent || messageContent.innerText;
+
+                console.log('Checking message for markdown:', {
+                    length: text.length,
+                    preview: text.substring(0, 100),
+                    innerHTML: messageContent.innerHTML.substring(0, 100)
+                });
+
+                // Check if this message looks like markdown
+                if (looksLikeMarkdown(text)) {
+                    console.log('Rendering message as markdown');
+                    // Render as markdown
+                    messageContent.innerHTML = '<div class="markdown-content">' + markdownToHtml(text) + '</div>';
+                    messageContent.dataset.markdownProcessed = 'true';
+                } else {
+                    console.log('Message does not look like markdown');
+                }
+            });
         }
 
         // View document in modal
@@ -934,8 +967,131 @@
         }
 
         // Simple markdown to HTML converter
+        function looksLikeMarkdown(content) {
+            // Heuristic to detect if content is likely markdown
+            // Count markdown patterns and if we find enough, consider it markdown
+            let score = 0;
+            const patterns = [];
+
+            // Check for headers (# ## ###)
+            if (/^#{1,6}\s+.+$/m.test(content)) {
+                score += 2;
+                patterns.push('headers');
+            }
+
+            // Check for multiple headers
+            const headerMatches = content.match(/^#{1,6}\s+.+$/gm);
+            if (headerMatches && headerMatches.length > 1) {
+                score += 2;
+                patterns.push('multiple-headers');
+            }
+
+            // Check for bold/italic (**text** or *text*)
+            if (/\*\*[^*]+\*\*|\*[^*]+\*/.test(content)) {
+                score += 1;
+                patterns.push('bold/italic');
+            }
+
+            // Check for code blocks (```code```)
+            if (/```[\s\S]*?```/.test(content)) {
+                score += 3;
+                patterns.push('code-blocks');
+            }
+
+            // Check for inline code (`code`)
+            if (/`[^`\n]+`/.test(content)) {
+                score += 1;
+                patterns.push('inline-code');
+            }
+
+            // Check for links [text](url)
+            if (/\[([^\]]+)\]\(([^)]+)\)/.test(content)) {
+                score += 2;
+                patterns.push('links');
+            }
+
+            // Check for markdown tables (| column | column |)
+            if (/\|.+\|.+\|/.test(content)) {
+                score += 2;
+                patterns.push('tables');
+            }
+
+            // Check for lists (- item or * item or 1. item)
+            if (/^[\*\-]\s+.+$/m.test(content)) {
+                score += 1;
+                patterns.push('unordered-lists');
+            }
+            if (/^\d+\.\s+.+$/m.test(content)) {
+                score += 1;
+                patterns.push('ordered-lists');
+            }
+
+            // Check for blockquotes (> text)
+            if (/^>\s+.+$/m.test(content)) {
+                score += 1;
+                patterns.push('blockquotes');
+            }
+
+            // Check for horizontal rules (--- or ***)
+            if (/^[\-\*]{3,}$/m.test(content)) {
+                score += 1;
+                patterns.push('hr');
+            }
+
+            // If score is 3 or higher, likely markdown
+            // Lower threshold if we detect code blocks or tables (strong indicators)
+            const hasCodeBlocks = /```[\s\S]*?```/.test(content);
+            const hasTables = /\|.+\|.+\|/.test(content);
+            const threshold = (hasCodeBlocks || hasTables) ? 2 : 3;
+            const isMarkdown = score >= threshold;
+
+            console.log('Markdown detection:', {
+                score,
+                threshold,
+                isMarkdown,
+                patterns,
+                preview: content.substring(0, 100)
+            });
+
+            return isMarkdown;
+        }
+
         function markdownToHtml(markdown) {
             let html = markdown;
+
+            // Tables (must come before most other processing)
+            html = html.replace(/^\|(.+)\|\s*$/gm, function (match) {
+                const cells = match.split('|').slice(1, -1).map(cell => cell.trim());
+                return '||' + cells.join('|') + '||';
+            });
+
+            // Process table blocks
+            const tableRegex = /(\|\|.+\|\|(?:\n\|\|.+\|\|)+)/g;
+            html = html.replace(tableRegex, function (tableBlock) {
+                const rows = tableBlock.split('\n').filter(row => row.trim());
+                if (rows.length < 2) return tableBlock;
+
+                let tableHtml = '<table class="markdown-table">';
+
+                rows.forEach((row, index) => {
+                    const cells = row.split('|').slice(1, -1);
+
+                    // Skip separator rows (like |-----|-----|)
+                    if (cells.every(cell => /^[\s\-:]+$/.test(cell))) {
+                        return;
+                    }
+
+                    const tag = index === 0 ? 'th' : 'td';
+                    tableHtml += '<tr>';
+                    cells.forEach(cell => {
+                        tableHtml += `<${tag}>${cell.trim()}</${tag}>`;
+                    });
+                    tableHtml += '</tr>';
+                });
+
+                tableHtml += '</table>';
+                return tableHtml;
+            });
 
             // Headers (must come before other formatting)
             html = html.replace(/^### (.*$)/gim, '<h3>$1</h3>');
@@ -989,6 +1145,8 @@
             html = html.replace(/(<\/blockquote>)<\/p>/g, '$1');
             html = html.replace(/<p>(<pre)/g, '$1');
             html = html.replace(/(<\/pre>)<\/p>/g, '$1');
+            html = html.replace(/<p>(<table)/g, '$1');
+            html = html.replace(/(<\/table>)<\/p>/g, '$1');
 
             return html;
         }
@@ -1025,12 +1183,15 @@
                         return;
                     }
 
-                    // Check if this is a markdown file
-                    const isMarkdown = source.toLowerCase().endsWith('.md') || source.toLowerCase().endsWith('.markdown');
+                    // Check if this is a markdown file by extension or content
+                    const hasMarkdownExtension = source.toLowerCase().endsWith('.md') || source.toLowerCase().endsWith('.markdown');
+                    const contentLooksLikeMarkdown = looksLikeMarkdown(content);
+                    const isMarkdown = hasMarkdownExtension || contentLooksLikeMarkdown;
 
                     if (isMarkdown) {
                         // Display markdown file with proper rendering
                         const fileName = decodeURIComponent(source.split('/').pop());
+                        const fileTypeLabel = hasMarkdownExtension ? 'Markdown' : 'Markdown (detected)';
                         contentElement.innerHTML = `
                             <div class="markdown-document-container">
                                 <div class="markdown-header">
@@ -1038,7 +1199,7 @@
                                         <span class="markdown-icon">📝</span>
                                         <div class="markdown-info">
                                             <div class="markdown-name">${escapeHtml(fileName)}</div>
-                                            <div class="markdown-source">Source: ${escapeHtml(decodeURIComponent(source))}</div>
+                                            <div class="markdown-source">Source: ${escapeHtml(decodeURIComponent(source))} · ${fileTypeLabel}</div>
                                         </div>
                                     </div>
                                     <div class="markdown-actions">

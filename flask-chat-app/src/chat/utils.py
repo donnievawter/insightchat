@@ -222,7 +222,7 @@ def get_available_models(ollama_base_url=None):
         ollama_base_url = os.getenv("OLLAMA_URL", "http://localhost:11434")
         # Remove /api/chat if it's there, we need just the base URL
         ollama_base_url = ollama_base_url.replace("/api/chat", "")
-    
+        print(f"DEBUG: Using Ollama base URL: {ollama_base_url}")       
     try:
         tags_url = f"{ollama_base_url.rstrip('/')}/api/tags"
         # print(f"DEBUG: Fetching models from {tags_url}")  # Commented out to reduce log noise

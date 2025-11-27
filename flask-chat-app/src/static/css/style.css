@@ -919,6 +919,54 @@ body {
     margin-bottom: 8px;
 }
 
+/* Markdown table styles */
+.markdown-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0;
+    background: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.markdown-table th {
+    background: #161b22;
+    color: #58a6ff;
+    font-weight: 600;
+    text-align: left;
+    padding: 12px 16px;
+    border-bottom: 2px solid #30363d;
+    border-right: 1px solid #30363d;
+}
+
+.markdown-table th:last-child {
+    border-right: none;
+}
+
+.markdown-table td {
+    padding: 10px 16px;
+    border-bottom: 1px solid #21262d;
+    border-right: 1px solid #21262d;
+    color: #e6edf3;
+}
+
+.markdown-table td:last-child {
+    border-right: none;
+}
+
+.markdown-table tbody tr:hover {
+    background: #161b22;
+}
+
+.markdown-table tbody tr:nth-child(even) {
+    background: rgba(22, 27, 34, 0.3);
+}
+
+.markdown-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
 /* Markdown Document Viewer */
 .markdown-document-container {
     height: 100%;
@@ -1481,7 +1529,8 @@ body {
 
 .input-with-audio input[type="text"] {
     flex: 1;
-    padding-right: 100px; /* Make room for audio buttons */
+    padding-right: 100px;
+    /* Make room for audio buttons */
 }
 
 .audio-controls {
@@ -1528,9 +1577,12 @@ body {
 }
 
 @keyframes pulse {
-    0%, 100% {
+
+    0%,
+    100% {
         opacity: 1;
     }
+
     50% {
         opacity: 0.7;
     }
