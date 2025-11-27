@@ -2,7 +2,10 @@ from flask import Blueprint, render_template, request, session, redirect, jsonif
 import os
 import requests
 import asyncio
+import os
+import requests
 from .utils import prompt_model, fetch_repo_chunks, get_available_models, fetch_document_content
+from .config import DEFAULT_SYSTEM_PROMPT, DEFAULT_MODEL, DEFAULT_RAG_CHUNKS, MAX_MESSAGE_HISTORY, CSV_ANALYSIS_INSTRUCTIONS
 from .whisper_client import WhisperClient
 
 chat_bp = Blueprint('chat', __name__)
@@ -14,14 +17,14 @@ def chat():
         # Initialize session if needed
         if "message_history" not in session:
             session["message_history"] = []
-        system_prompt = request.args.get("context", "You are a helpful assistant.")
+        system_prompt = request.args.get("context", DEFAULT_SYSTEM_PROMPT)
         session["system_prompt"] = system_prompt
         
         # Get available models from Ollama
         available_models = get_available_models()
         
         # Determine default model from environment or fallback
-        default_model = os.getenv("DEFAULT_MODEL", "llama3.2:latest")
+        default_model = os.getenv("DEFAULT_MODEL", DEFAULT_MODEL)
         
         # If the default model from env is not available, use first available or fallback
         if available_models:
@@ -76,9 +79,9 @@ def chat():
             print(f"DEBUG: Session cleanup - current history length: {len(session['message_history'])}")
             
             # More aggressive message limit
-            if len(session["message_history"]) > 6:
-                session["message_history"] = session["message_history"][-6:]
-                print(f"DEBUG: Trimmed message history to last 6 messages")
+            if len(session["message_history"]) > MAX_MESSAGE_HISTORY:
+                session["message_history"] = session["message_history"][-MAX_MESSAGE_HISTORY:]
+                print(f"DEBUG: Trimmed message history to last {MAX_MESSAGE_HISTORY} messages")
             
             # Remove ALL large metadata from ALL messages except the very last one
             for i, msg in enumerate(session["message_history"]):
@@ -122,7 +125,7 @@ def chat():
         sources_found = []  # Initialize sources list
         
         if use_repo_docs:
-            k = 5  # Default number of chunks
+            k = DEFAULT_RAG_CHUNKS  # Default number of chunks
             rag_api_url = os.getenv("RAG_API_URL")
             print(f"DEBUG: RAG enabled, API URL: {rag_api_url}")  # Debug log
             
@@ -236,19 +239,11 @@ def chat():
         # Get response from Ollama
         try:
             # Enhanced system prompt for better structured data analysis
-            base_system_prompt = session.get("system_prompt", "You are a helpful assistant.")
+            base_system_prompt = session.get("system_prompt", DEFAULT_SYSTEM_PROMPT)
             
             # Add CSV analysis instructions if we have full document context
             if 'full_document_context' in locals() and full_document_context:
-                system_prompt = base_system_prompt + """
-
-ADDITIONAL INSTRUCTIONS FOR DOCUMENT ANALYSIS:
-- When analyzing CSV/tabular data, be systematic and precise
-- For row counting: Count each line including header (total rows in file)
-- For data record counting: Count data rows only, excluding header
-- When given complete documents, use them as the authoritative source
-- Double-check your counting by examining the structure carefully
-"""
+                system_prompt = base_system_prompt + CSV_ANALYSIS_INSTRUCTIONS
             else:
                 system_prompt = base_system_prompt
             
@@ -280,9 +275,9 @@ ADDITIONAL INSTRUCTIONS FOR DOCUMENT ANALYSIS:
             
             # Inline session cleanup to prevent cookie overflow
             print(f"DEBUG: Post-response cleanup - history length: {len(session['message_history'])}")
-            if len(session["message_history"]) > 6:
-                session["message_history"] = session["message_history"][-6:]
-                print(f"DEBUG: Trimmed message history to last 6 messages")
+            if len(session["message_history"]) > MAX_MESSAGE_HISTORY:
+                session["message_history"] = session["message_history"][-MAX_MESSAGE_HISTORY:]
+                print(f"DEBUG: Trimmed message history to last {MAX_MESSAGE_HISTORY} messages")
             
             # Remove metadata from older messages
             for i, msg in enumerate(session["message_history"]):
@@ -299,8 +294,8 @@ ADDITIONAL INSTRUCTIONS FOR DOCUMENT ANALYSIS:
             session["message_history"].append({"role": "assistant", "content": error_msg})
             
             # Inline session cleanup for error case
-            if len(session["message_history"]) > 6:
-                session["message_history"] = session["message_history"][-6:]
+            if len(session["message_history"]) > MAX_MESSAGE_HISTORY:
+                session["message_history"] = session["message_history"][-MAX_MESSAGE_HISTORY:]
             
             session.modified = True
 

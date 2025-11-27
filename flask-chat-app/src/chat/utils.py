@@ -2,13 +2,14 @@ import requests
 import os
 import html
 from textwrap import shorten
+from .config import DEFAULT_SYSTEM_PROMPT, DEFAULT_TEMPERATURE
 
 def clean_markdown(text):
     """Clean up markdown formatting"""
     text = text.replace("<p>```", "```").replace("```</p>", "```")
     return text
 
-def build_chat_payload(model, prompt, prior_messages=None, system_prompt="Respond to queries in English", temperature=0.7):
+def build_chat_payload(model, prompt, prior_messages=None, system_prompt=None, temperature=None):
     messages = prior_messages[:] if prior_messages else []
 
     if not any(m["role"] == "system" for m in messages):
@@ -256,15 +257,18 @@ def get_available_models(ollama_base_url=None):
             {"name": "llama2:latest", "family": "llama", "parameter_size": "7B"}
         ]
 
-def prompt_model(model, prompt, history=None, system_prompt="You are a helpful assistant."):
+def prompt_model(model, prompt, history=None, system_prompt=None):
     """Send a prompt to Ollama and get the response"""
+    if system_prompt is None:
+        system_prompt = DEFAULT_SYSTEM_PROMPT
+    
     ollama_url = os.getenv("OLLAMA_URL", "http://localhost:11434/api/chat")
     
     payload, updated_history = build_chat_payload(
         model, prompt,
         prior_messages=history,
         system_prompt=system_prompt,
-        temperature=0.7
+        temperature=DEFAULT_TEMPERATURE
     )
     # Minimal debug logging
     print("DEBUG: ===== OLLAMA REQUEST =====")
