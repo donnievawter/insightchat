@@ -250,12 +250,9 @@ def get_available_models(ollama_base_url=None):
         return models
         
     except Exception as e:
-        print(f"DEBUG: Error fetching models: {e}")
-        # Return fallback models if API fails
-        return [
-            {"name": "llama3.2:latest", "family": "llama", "parameter_size": "3B"},
-            {"name": "llama2:latest", "family": "llama", "parameter_size": "7B"}
-        ]
+        print(f"ERROR: Failed to fetch models from Ollama API: {e}")
+        # Return empty list if API fails - don't pretend models are available
+        return []
 
 def prompt_model(model, prompt, history=None, system_prompt=None):
     """Send a prompt to Ollama and get the response"""
