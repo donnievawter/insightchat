@@ -472,6 +472,11 @@ def get_document():
             'js': 'application/javascript',
             'eml': 'message/rfc822',
             'emlx': 'message/rfc822',
+            'wav': 'audio/wav',
+            'mp3': 'audio/mpeg',
+            'm4a': 'audio/mp4',
+            'flac': 'audio/flac',
+            'ogg': 'audio/ogg',
         }
         
         content_type = content_type_map.get(file_extension, 'text/plain; charset=utf-8')

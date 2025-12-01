@@ -462,6 +462,7 @@
             const csvExtensions = ['csv', 'tsv'];
             const docxExtensions = ['docx', 'doc'];
             const emailExtensions = ['eml', 'emlx'];
+            const audioExtensions = ['wav', 'mp3', 'm4a', 'flac', 'ogg'];
 
 
 
@@ -477,6 +478,9 @@
             } else if (docxExtensions.includes(fileExtension)) {
                 // Display DOCX document
                 displayDocxDocument(source, contentElement);
+            } else if (audioExtensions.includes(fileExtension)) {
+                // Display audio player
+                displayAudioDocument(source, contentElement);
             } else if (textExtensions.includes(fileExtension)) {
                 // Display as text
                 displayTextDocument(source, startIndex, contentElement);
@@ -514,6 +518,67 @@
                     </div>
                 </div>
             `;
+        }
+
+        // Display audio documents
+        function displayAudioDocument(source, contentElement) {
+            const fileName = decodeURIComponent(source.split('/').pop());
+            const fileExtension = source.split('.').pop().toLowerCase();
+
+            contentElement.innerHTML = `
+                <div class="audio-document-container">
+                    <div class="audio-header">
+                        <div class="audio-title">
+                            <span class="audio-icon">🎵</span>
+                            <div class="audio-info">
+                                <div class="audio-name">${escapeHtml(fileName)}</div>
+                                <div class="audio-source">Source: ${escapeHtml(decodeURIComponent(source))}</div>
+                            </div>
+                        </div>
+                        <div class="audio-actions">
+                            <button onclick="downloadAudio('${encodeURIComponent(source)}')" class="audio-btn audio-download-btn" title="Download Audio">
+                                <span class="audio-btn-icon">⬇</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="audio-player-wrapper">
+                        <div class="audio-player-info">
+                            <div class="audio-format-badge">${fileExtension.toUpperCase()}</div>
+                            <div class="audio-description">Audio file from RAG context</div>
+                        </div>
+                        <audio controls class="audio-player" preload="metadata">
+                            <source src="{{ url_for('chat.get_document') }}?source=${encodeURIComponent(source)}" type="audio/${fileExtension === 'mp3' ? 'mpeg' : fileExtension}">
+                            Your browser does not support the audio element.
+                        </audio>
+                        <div class="audio-error" style="display: none;">
+                            <div class="audio-error-icon">⚠️</div>
+                            <div class="audio-error-text">
+                                <strong>Audio playback unavailable</strong><br>
+                                <span>Your browser doesn't support this audio format</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // Handle audio loading errors
+            const audioElement = contentElement.querySelector('.audio-player');
+            if (audioElement) {
+                audioElement.addEventListener('error', function () {
+                    contentElement.querySelector('.audio-player-wrapper').style.display = 'none';
+                    contentElement.querySelector('.audio-error').style.display = 'flex';
+                });
+            }
+        }
+
+        // Download audio file
+        function downloadAudio(source) {
+            const link = document.createElement('a');
+            link.href = '{{ url_for("chat.get_document") }}?source=' + encodeURIComponent(source);
+            link.download = decodeURIComponent(source.split('/').pop());
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
         }
 
         // Display PDF documents

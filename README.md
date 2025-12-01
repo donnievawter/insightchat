@@ -7,6 +7,8 @@ A clean, modern AI-powered chat application with optional RAG (Retrieval-Augment
 - 🤖 **Multiple AI Models**: Support for various Ollama models (Llama 3.2, Llama 3.1, Mistral, CodeLlama, etc.)
 - 🎙️ **Voice Input**: Record audio and automatically transcribe to text using Whisper
 - 🔍 **RAG Integration**: Optional context enhancement using external document retrieval
+- 📄 **Document Viewer**: View and interact with various document types (PDF, CSV, DOCX, images, audio files, and more)
+- 🎵 **Audio File Support**: Play audio files (.wav, .mp3, .m4a, .flac, .ogg) directly in the document viewer
 - 💬 **Clean Chat Interface**: Modern, responsive web interface
 - ⚡ **Fast & Local**: Runs entirely on your local machine with Ollama
 - 🛠 **Simple Setup**: Easy configuration and deployment
@@ -107,6 +109,26 @@ To enable RAG (Retrieval-Augmented Generation):
 1. Set up a RAG service endpoint
 2. Configure `RAG_API_URL` in your `.env` file
 3. Toggle "Use RAG Context" in the chat interface
+
+## Document Viewing
+
+InsightChat includes a built-in document viewer that supports multiple file types:
+
+### Supported Formats
+
+- **Audio Files**: WAV, MP3, M4A, FLAC, OGG - Play audio directly with HTML5 audio controls
+- **Images**: PNG, JPG, JPEG, GIF, WEBP, SVG, BMP
+- **Documents**: PDF (inline viewer), DOCX (text extraction)
+- **Data**: CSV/TSV (interactive table view)
+- **Email**: EML, EMLX (formatted email viewer)
+- **Text**: MD, TXT, JSON, XML, YAML, and more
+
+### Using the Document Viewer
+
+1. When RAG is enabled, source documents appear with each AI response
+2. Click "View Document" on any source to open it in the viewer
+3. For audio files, use the built-in player controls to play, pause, seek, and adjust volume
+4. Download any document using the download button in the viewer header
 
 ## Development
 
