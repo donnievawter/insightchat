@@ -12,6 +12,7 @@ import asyncio
 
 from .tools.weather_tool import WeatherTool
 from .tools.quotes_tool import QuotesTool
+from .tools.calendar_tool import CalendarTool
 
 logger = logging.getLogger(__name__)
 
@@ -81,6 +82,27 @@ class ToolRouter:
             logger.warning("Quotes tool enabled but TOOL_QUOTES_API_URL not configured")
         else:
             logger.debug("Quotes tool disabled in configuration")
+        
+        # Calendar Tool
+        calendar_enabled = os.getenv('TOOL_CALENDAR_ENABLED', 'false').lower() == 'true'
+        calendar_url = os.getenv('TOOL_CALENDAR_API_URL', '')
+        calendar_timeout = int(os.getenv('TOOL_CALENDAR_TIMEOUT', '10'))
+        
+        if calendar_enabled and calendar_url:
+            try:
+                calendar_tool = CalendarTool(
+                    api_url=calendar_url,
+                    timeout=calendar_timeout,
+                    enabled=True
+                )
+                self.tools.append(calendar_tool)
+                logger.info(f"✓ Calendar tool registered: {calendar_url}")
+            except Exception as e:
+                logger.error(f"Failed to initialize calendar tool: {e}")
+        elif calendar_enabled:
+            logger.warning("Calendar tool enabled but TOOL_CALENDAR_API_URL not configured")
+        else:
+            logger.debug("Calendar tool disabled in configuration")
         
         # Add more tools here as needed...
         

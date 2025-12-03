@@ -31,3 +31,11 @@ MAX_MESSAGE_HISTORY = 6  # Maximum number of messages to keep in session
 # Note: Tools are configured primarily through environment variables
 # See .env.example for tool-specific settings
 TOOL_SYSTEM_ENABLED = True  # Master switch for all tools
+
+# Timezone configuration for calendar events
+# Use IANA timezone names:
+# - America/New_York (Eastern)
+# - America/Chicago (Central)  
+# - America/Denver (Mountain)
+# - America/Los_Angeles (Pacific)
+LOCAL_TIMEZONE = "America/Denver"
