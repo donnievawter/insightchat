@@ -5,8 +5,9 @@ import asyncio
 import os
 import requests
 from .utils import prompt_model, fetch_repo_chunks, get_available_models, fetch_document_content
-from .config import DEFAULT_SYSTEM_PROMPT, DEFAULT_MODEL, DEFAULT_RAG_CHUNKS, MAX_MESSAGE_HISTORY, CSV_ANALYSIS_INSTRUCTIONS
+from .config import DEFAULT_SYSTEM_PROMPT, DEFAULT_MODEL, DEFAULT_RAG_CHUNKS, MAX_MESSAGE_HISTORY, CSV_ANALYSIS_INSTRUCTIONS, TOOL_SYSTEM_ENABLED
 from .whisper_client import WhisperClient
+from .tool_router import get_tool_router
 
 chat_bp = Blueprint('chat', __name__)
 whisper_client = WhisperClient()
@@ -102,6 +103,39 @@ def chat():
         
         cleanup_message_history()
 
+        # ========================================================================
+        # TOOL ROUTING - Check if external tools should handle this query
+        # ========================================================================
+        tool_context = ""
+        tool_results = []
+        
+        if TOOL_SYSTEM_ENABLED:
+            try:
+                print(f"DEBUG: Checking tools for query: {prompt[:100]}")
+                router = get_tool_router()
+                
+                # Route query to appropriate tools (async)
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                tool_results, tool_context = loop.run_until_complete(router.route_query(prompt))
+                loop.close()
+                
+                if tool_results:
+                    success_count = sum(1 for r in tool_results if r.get('success'))
+                    print(f"DEBUG: Tools executed: {len(tool_results)}, successful: {success_count}")
+                    if tool_context:
+                        print(f"DEBUG: Tool context length: {len(tool_context)} chars")
+                else:
+                    print(f"DEBUG: No tools matched this query")
+                    
+            except Exception as e:
+                print(f"DEBUG: Tool routing error: {e}")
+                import traceback
+                traceback.print_exc()
+                # Continue with normal flow even if tools fail
+                tool_context = ""
+                tool_results = []
+        
         # Check if we can reuse context from recent conversation
         recent_full_context = None
         recent_analyzed_docs = []
@@ -119,12 +153,15 @@ def chat():
                     # We'll fetch the same documents again but skip RAG search
                     break
         
-        # Fetch context from RAG if requested
+        # Fetch context from RAG if requested (but skip if tools already handled the query)
         context_text = None
         rag_chunks = []
         sources_found = []  # Initialize sources list
         
-        if use_repo_docs:
+        # Skip RAG if tools successfully handled the query
+        tools_handled_query = bool(tool_results and any(r.get('success') for r in tool_results))
+        
+        if use_repo_docs and not tools_handled_query:
             k = DEFAULT_RAG_CHUNKS  # Default number of chunks
             rag_api_url = os.getenv("RAG_API_URL")
             print(f"DEBUG: RAG enabled, API URL: {rag_api_url}")  # Debug log
@@ -205,13 +242,31 @@ def chat():
             if context_text:
                 combined_context = context_text
                 print(f"DEBUG: Using RAG chunks context length: {len(combined_context)} chars")
+                
+                # Combine tool context with RAG context if both exist
+                if tool_context:
+                    combined_context = tool_context + "\n\n" + combined_context
+                    print(f"DEBUG: Combined tool + RAG context length: {len(combined_context)} chars")
+                
                 # Insert context as system message temporarily for this query
                 temp_history = [{"role": "system", "content": combined_context}] + session["message_history"]
+            elif tool_context:
+                # Only tool context, no RAG context
+                print(f"DEBUG: Using tool context only: {len(tool_context)} chars")
+                temp_history = [{"role": "system", "content": tool_context}] + session["message_history"]
             else:
-                print("DEBUG: No context retrieved from RAG")
+                print("DEBUG: No context retrieved from RAG or tools")
                 temp_history = session["message_history"]
         else:
-            # RAG not enabled - just get available documents for Load button functionality
+            # RAG not enabled - check if we have tool context
+            if tool_context:
+                print(f"DEBUG: Using tool context only (RAG disabled): {len(tool_context)} chars")
+                temp_history = [{"role": "system", "content": tool_context}] + session["message_history"]
+            else:
+                print("DEBUG: RAG not enabled and no tool context")
+                temp_history = session["message_history"]
+            
+            # Get available documents for Load button functionality
             rag_api_url = os.getenv("RAG_API_URL")
             if rag_api_url:
                 try:
@@ -232,9 +287,6 @@ def chat():
                         print(f"DEBUG: Found {len(sources_found)} available documents for loading")
                 except requests.RequestException as e:
                     print(f"DEBUG: Could not fetch available documents: {e}")
-            
-            print("DEBUG: RAG not enabled for this query")
-            temp_history = session["message_history"]
 
         # Get response from Ollama
         try:
@@ -270,6 +322,13 @@ def chat():
             if sources_found:
                 assistant_message["sources"] = sources_found
                 print(f"DEBUG: Stored {len(sources_found)} sources in assistant message")
+            
+            # Track which tools were used for this response
+            if tool_results:
+                successful_tools = [r['metadata']['tool'] for r in tool_results if r.get('success')]
+                if successful_tools:
+                    assistant_message["tools_used"] = successful_tools
+                    print(f"DEBUG: Tools used for this response: {successful_tools}")
                 
             session["message_history"].append(assistant_message)
             
@@ -318,6 +377,41 @@ def reset():
 def health_check():
     """Health check endpoint for monitoring services"""
     return {"status": "healthy", "service": "insightchat"}, 200
+
+@chat_bp.route("/tools/status", methods=["GET"])
+def tools_status():
+    """Get status of all available external tools"""
+    if not TOOL_SYSTEM_ENABLED:
+        return jsonify({
+            "enabled": False,
+            "message": "Tool system is disabled"
+        }), 200
+    
+    try:
+        router = get_tool_router()
+        
+        # Get tool information
+        tool_info = router.get_tool_info()
+        active_tools = router.get_active_tools()
+        
+        # Perform health checks (async)
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        health_status = loop.run_until_complete(router.health_check_all())
+        loop.close()
+        
+        return jsonify({
+            "enabled": True,
+            "tools": tool_info,
+            "active_tools": active_tools,
+            "health": health_status
+        }), 200
+        
+    except Exception as e:
+        return jsonify({
+            "enabled": True,
+            "error": str(e)
+        }), 500
 
 @chat_bp.route("/load_source", methods=["POST"])
 def load_source():

@@ -26,3 +26,8 @@ DEFAULT_RAG_CHUNKS = 5
 
 # Chat configuration
 MAX_MESSAGE_HISTORY = 6  # Maximum number of messages to keep in session
+
+# Tool system configuration
+# Note: Tools are configured primarily through environment variables
+# See .env.example for tool-specific settings
+TOOL_SYSTEM_ENABLED = True  # Master switch for all tools

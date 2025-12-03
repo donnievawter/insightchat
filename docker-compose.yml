@@ -11,6 +11,13 @@ services:
       - OLLAMA_URL=${OLLAMA_URL:-http://host.docker.internal:11434/api/chat}
       - RAG_API_URL=${RAG_API_URL:-}
       - FLASK_SECRET_KEY=${FLASK_SECRET_KEY:-insecure-dev-key-change-this}
+      # Tool configuration
+      - TOOL_WEATHER_ENABLED=${TOOL_WEATHER_ENABLED:-false}
+      - TOOL_WEATHER_API_URL=${TOOL_WEATHER_API_URL:-}
+      - TOOL_WEATHER_TIMEOUT=${TOOL_WEATHER_TIMEOUT:-10}
+      - TOOL_QUOTES_ENABLED=${TOOL_QUOTES_ENABLED:-false}
+      - TOOL_QUOTES_API_URL=${TOOL_QUOTES_API_URL:-}
+      - TOOL_QUOTES_TIMEOUT=${TOOL_QUOTES_TIMEOUT:-10}
     volumes:
       # Mount the .env file if it exists
       - ./.env:/app/.env:ro

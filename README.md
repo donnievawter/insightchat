@@ -7,6 +7,7 @@ A clean, modern AI-powered chat application with optional RAG (Retrieval-Augment
 - 🤖 **Multiple AI Models**: Support for various Ollama models (Llama 3.2, Llama 3.1, Mistral, CodeLlama, etc.)
 - 🎙️ **Voice Input**: Record audio and automatically transcribe to text using Whisper
 - 🔍 **RAG Integration**: Optional context enhancement using external document retrieval
+- 🔧 **External Tools Integration**: Connect to specialized APIs (weather, quotes, etc.) for real-time data
 - 📄 **Document Viewer**: View and interact with various document types (PDF, CSV, DOCX, images, audio files, and more)
 - 🎵 **Audio File Support**: Play audio files (.wav, .mp3, .m4a, .flac, .ogg) directly in the document viewer
 - 💬 **Clean Chat Interface**: Modern, responsive web interface
@@ -39,7 +40,7 @@ A clean, modern AI-powered chat application with optional RAG (Retrieval-Augment
 3. **Set up environment variables**
 
    ```bash
-   cp flask-chat-app/.env.example flask-chat-app/.env
+   cp .env.example .env
    # Edit .env file with your settings
    ```
 
@@ -110,6 +111,37 @@ To enable RAG (Retrieval-Augmented Generation):
 2. Configure `RAG_API_URL` in your `.env` file
 3. Toggle "Use RAG Context" in the chat interface
 
+## External Tools Integration
+
+InsightChat can integrate with external APIs to provide specialized real-time data (weather, quotes, etc.). See **[TOOLS.md](TOOLS.md)** for detailed documentation.
+
+### Quick Setup - Weather Integration
+
+1. **Enable the weather tool in `.env`:**
+   ```bash
+   TOOL_WEATHER_ENABLED=true
+   TOOL_WEATHER_API_URL=http://localhost:8000
+   ```
+
+2. **Start your PyWeather API** (or any compatible weather service)
+
+3. **Ask weather questions naturally:**
+   - "What's the current temperature?"
+   - "Do I need an umbrella today?"
+   - "Is it windy outside?"
+
+The tool system automatically detects intent and calls appropriate APIs. No special syntax needed!
+
+### Features
+
+- ✅ **Intent-Based Routing** - Automatically detects which tools to use
+- ✅ **Configuration-Driven** - Enable/disable tools via environment variables
+- ✅ **Extensible** - Easy to add new tools
+- ✅ **Works with RAG** - Combines tool data with document retrieval
+- ✅ **Graceful Degradation** - Works without tools if unavailable
+
+For complete documentation on adding new tools, see **[TOOLS.md](TOOLS.md)**.
+
 ## Document Viewing
 
 InsightChat includes a built-in document viewer that supports multiple file types:
@@ -142,14 +174,21 @@ insightchat/
 │   │   ├── chat/
 │   │   │   ├── routes.py       # Chat routes and logic
 │   │   │   ├── utils.py        # Utility functions
+│   │   │   ├── tool_router.py  # External tools orchestration
+│   │   │   ├── tools/          # External API integrations
+│   │   │   │   ├── base_tool.py
+│   │   │   │   ├── weather_tool.py
+│   │   │   │   └── quotes_tool.py
 │   │   │   └── whisper_client.py # Whisper API client
 │   │   └── static/
 │   │       └── css/
 │   │           └── style.css   # Styles
-│   ├── templates/
-│   │   └── chat.html          # Main chat template
-│   └── .env.example           # Environment variables template
+│   └── templates/
+│       └── chat.html          # Main chat template
+├── .env                       # Your configuration (gitignored)
+├── .env.example               # Environment variables template
 ├── pyproject.toml             # Project dependencies
+├── TOOLS.md                   # External tools documentation
 └── README.md                  # This file
 ```
 
