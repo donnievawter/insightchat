@@ -858,7 +858,226 @@ def transcribe_audio():
         
     except Exception as e:
         print(f"Error transcribing audio: {str(e)}")
-        return jsonify({"error": f"Error transcribing audio: {str(e)}"}), 500
         import traceback
         print(f"DEBUG: Full traceback: {traceback.format_exc()}")
         return jsonify({"error": str(e)}), 500
+
+
+@chat_bp.route("/api/voice-query", methods=["POST"])
+def voice_query():
+    """
+    Voice assistant API endpoint.
+    
+    Accepts:
+    - Audio file (transcribes via Whisper)
+    - OR pre-transcribed text
+    
+    Processes through full chat pipeline (tools + RAG + LLM)
+    
+    Optionally broadcasts response to TTS speakers
+    
+    Request:
+        - file: audio file (multipart/form-data)
+        - OR text: pre-transcribed text (JSON)
+        - model: optional model name (defaults to DEFAULT_MODEL)
+        - use_rag: optional boolean (defaults to true)
+        - broadcast: optional boolean (if true, sends response to TTS)
+        - language: optional language code for transcription
+    
+    Response:
+        {
+            "success": true/false,
+            "query": "transcribed or provided text",
+            "response": "LLM response text",
+            "tools_used": ["calendar", "weather"],
+            "broadcast_sent": true/false,
+            "error": "error message if failed"
+        }
+    """
+    try:
+        transcribed_text = None
+        
+        # Check if audio file was uploaded
+        if 'file' in request.files:
+            file = request.files['file']
+            if file.filename:
+                print("DEBUG: Voice query - transcribing audio file")
+                # Read audio file
+                audio_content = file.read()
+                language = request.form.get('language')
+                
+                # Run async transcription
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    transcription_result = loop.run_until_complete(
+                        whisper_client.transcribe(
+                            audio_file=audio_content,
+                            filename=file.filename or "audio.webm",
+                            language=language,
+                        )
+                    )
+                finally:
+                    loop.close()
+                
+                transcribed_text = transcription_result.get("text", "").strip()
+                if not transcribed_text:
+                    return jsonify({
+                        "success": False,
+                        "error": "No text was transcribed from the audio file"
+                    }), 400
+                
+                print(f"DEBUG: Transcribed: {transcribed_text[:100]}...")
+        
+        # If no audio, check for text in JSON body
+        if not transcribed_text:
+            data = request.get_json() or {}
+            transcribed_text = data.get('text', '').strip()
+            if not transcribed_text:
+                return jsonify({
+                    "success": False,
+                    "error": "No audio file or text provided"
+                }), 400
+        
+        # Get parameters (from form data or JSON)
+        if request.content_type and 'multipart/form-data' in request.content_type:
+            model = request.form.get('model', os.getenv("DEFAULT_MODEL", DEFAULT_MODEL))
+            use_rag = request.form.get('use_rag', 'true').lower() == 'true'
+            broadcast = request.form.get('broadcast', 'false').lower() == 'true'
+            tts_speaker = request.form.get('speaker')
+            tts_model = request.form.get('tts_model')
+        else:
+            data = request.get_json() or {}
+            model = data.get('model', os.getenv("DEFAULT_MODEL", DEFAULT_MODEL))
+            use_rag = data.get('use_rag', True)
+            broadcast = data.get('broadcast', False)
+            tts_speaker = data.get('speaker')
+            tts_model = data.get('tts_model')
+        
+        print(f"DEBUG: Voice query - Model: {model}, RAG: {use_rag}, Broadcast: {broadcast}")
+        print(f"DEBUG: Query: {transcribed_text}")
+        
+        # === TOOL ROUTING ===
+        tool_context = ""
+        tool_results = []
+        tools_used = []
+        
+        if TOOL_SYSTEM_ENABLED:
+            router = get_tool_router()
+            print(f"DEBUG: Checking tools for query: {transcribed_text}")
+            
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                tool_results, tool_context = loop.run_until_complete(
+                    router.route_query(transcribed_text)
+                )
+            finally:
+                loop.close()
+            
+            if tool_results:
+                successful_tools = [r['metadata']['tool'] for r in tool_results if r.get('success')]
+                tools_used = successful_tools
+                print(f"DEBUG: Tools executed: {len(tool_results)}, successful: {len(successful_tools)}")
+        
+        # === RAG PROCESSING ===
+        context_text = None
+        tools_handled_query = bool(tool_results and any(r.get('success') for r in tool_results))
+        
+        if use_rag and not tools_handled_query:
+            rag_api_url = os.getenv("RAG_API_URL")
+            if rag_api_url:
+                print(f"DEBUG: Fetching RAG context for voice query")
+                context_text = fetch_repo_chunks(transcribed_text, k=DEFAULT_RAG_CHUNKS, rag_api_url=rag_api_url, return_chunks=False)
+                if context_text:
+                    print(f"DEBUG: RAG context retrieved: {len(context_text)} chars")
+        
+        # === PREPARE MESSAGE HISTORY ===
+        # Voice queries are stateless - no session history
+        message_history = [{
+            "role": "user",
+            "content": transcribed_text
+        }]
+        
+        # Build context for this query
+        combined_context = tool_context if tool_context else ""
+        if context_text and not tools_handled_query:
+            if combined_context:
+                combined_context += "\n\n" + context_text
+            else:
+                combined_context = context_text
+        
+        # Prepare temp history with context
+        if combined_context:
+            temp_history = [{"role": "system", "content": combined_context}] + message_history
+        else:
+            temp_history = message_history
+        
+        # === CALL LLM ===
+        print(f"DEBUG: Calling LLM with model: {model}")
+        
+        # Use a more conversational system prompt for voice
+        voice_system_prompt = "You are a helpful voice assistant. Provide clear, concise responses suitable for speech. Keep answers brief unless detail is specifically requested."
+        
+        response_text, _ = prompt_model(
+            model=model,
+            prompt=transcribed_text,
+            history=temp_history[:-1],
+            system_prompt=voice_system_prompt
+        )
+        
+        print(f"DEBUG: LLM response length: {len(response_text)} chars")
+        
+        # === OPTIONAL TTS BROADCAST ===
+        broadcast_sent = False
+        if broadcast:
+            tts_url = os.getenv('TTS_BROADCAST_URL')
+            if tts_url and tts_speaker:
+                try:
+                    print(f"DEBUG: Broadcasting response to TTS: {tts_url}")
+                    print(f"DEBUG: TTS speaker: {tts_speaker}, model: {tts_model or 'default'}")
+                    tts_timeout = int(os.getenv('TTS_TIMEOUT', '10'))
+                    
+                    # Build TTS request payload
+                    tts_payload = {
+                        "text": response_text,
+                        "speaker": tts_speaker
+                    }
+                    if tts_model:
+                        tts_payload["model_name"] = tts_model
+                    
+                    tts_response = requests.post(
+                        tts_url,
+                        json=tts_payload,
+                        timeout=tts_timeout
+                    )
+                    if tts_response.status_code == 200:
+                        broadcast_sent = True
+                        print("DEBUG: TTS broadcast successful")
+                    else:
+                        print(f"DEBUG: TTS broadcast failed with status {tts_response.status_code}")
+                        print(f"DEBUG: TTS response: {tts_response.text}")
+                except Exception as e:
+                    print(f"ERROR: TTS broadcast failed: {str(e)}")
+            elif broadcast and not tts_speaker:
+                print("DEBUG: TTS broadcast requested but speaker not specified")
+            else:
+                print("DEBUG: TTS broadcast requested but TTS_BROADCAST_URL not configured")
+        
+        # === RETURN RESPONSE ===
+        return jsonify({
+            "success": True,
+            "query": transcribed_text,
+            "response": response_text,
+            "tools_used": tools_used,
+            "broadcast_sent": broadcast_sent
+        })
+    
+    except Exception as e:
+        print(f"ERROR: Voice query failed: {str(e)}")
+        import traceback
+        print(f"DEBUG: Full traceback: {traceback.format_exc()}")
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500

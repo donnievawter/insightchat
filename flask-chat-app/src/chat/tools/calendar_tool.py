@@ -45,56 +45,53 @@ class CalendarTool(BaseTool):
     def get_intent_keywords(self) -> List[str]:
         """Keywords that suggest calendar-related queries."""
         return [
-            # Direct calendar terms (most specific)
+            # Direct calendar terms
             'calendar', 'event', 'events', 'schedule', 'appointment', 'appointments',
-            'meeting', 'meetings', 'agenda', 'scheduled',
+            'meeting', 'meetings', 'agenda',
             
-            # Calendar-specific phrases
-            "what's on my calendar", "what's on my schedule",
-            "what's scheduled", "what's on my agenda",
-            "check my calendar", "check my schedule",
-            "show my calendar", "show my schedule", "show my events",
-            "do i have.*meeting", "do i have.*appointment", "do i have.*event",
-            "am i busy", "am i free", "are you free", "what's coming up",
-            "upcoming event", "upcoming meeting", "upcoming appointment",
+            # Time references
+            'today', 'tomorrow', 'tonight', 'this week', 'next week', 'this month', 'next month',
+            'upcoming', 'later', 'soon', 'coming up',
             
-            # Time-specific calendar queries
-            "what's today", "what's tomorrow", "what's tonight",
-            "today's schedule", "tomorrow's schedule", "tonight's schedule",
-            "this week.*schedule", "next week.*schedule",
-            "events today", "events tomorrow", "events tonight",
-            "events this week", "events next week",
-            "meetings today", "meetings tomorrow", "meetings this week"
+            # Questions
+            'when', 'what time', 'do i have', 'am i busy', 'free', 'available',
+            "what's on", "what's scheduled", "what's coming",
+            
+            # Actions
+            'show me', 'check', 'list', 'tell me about', 'remind me'
         ]
     
     def can_handle(self, query: str) -> bool:
         """
         Determine if this tool should handle the message.
         
-        This now uses more sophisticated matching to avoid false positives.
-        Requires calendar-specific context, not just generic question words.
-        
         Args:
             query: The user's input message
             
         Returns:
-            bool: True if message contains calendar-related keywords with context
+            bool: True if message contains calendar-related keywords
         """
         if not self.enabled or not self.api_url:
             return False
             
         message_lower = query.lower()
         
-        # Check for calendar keywords - use regex for pattern-based keywords
-        for keyword in self.get_intent_keywords():
-            # Use regex for pattern-based keywords (containing .*)
-            if '.*' in keyword:
-                if re.search(keyword, message_lower):
-                    logger.info(f"Calendar tool matched pattern: {keyword}")
-                    return True
-            # Direct string match for simple keywords
-            elif keyword in message_lower:
-                logger.info(f"Calendar tool matched keyword: {keyword}")
+        # Primary calendar indicators - if any of these are present, it's definitely a calendar query
+        primary_keywords = [
+            'calendar', 'event', 'events', 'schedule', 'appointment', 'appointments',
+            'meeting', 'meetings', 'agenda', 'today', 'tomorrow', 'tonight',
+            'this week', 'next week', 'this month', 'next month'
+        ]
+        
+        for keyword in primary_keywords:
+            if keyword in message_lower:
+                return True
+        
+        # Secondary keywords - only match if combined with calendar context
+        # Check if query is asking about time/scheduling (not documents)
+        if any(word in message_lower for word in ['when', 'what time', 'am i busy', 'free', 'available']):
+            # Exclude if asking about documents/files
+            if not any(word in message_lower for word in ['document', 'file', 'pdf', 'email', 'attachment']):
                 return True
         
         return False

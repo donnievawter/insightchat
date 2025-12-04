@@ -7,10 +7,12 @@ A clean, modern AI-powered chat application with optional RAG (Retrieval-Augment
 - 🤖 **Multiple AI Models**: Support for various Ollama models (Llama 3.2, Llama 3.1, Mistral, CodeLlama, etc.)
 - 🎙️ **Voice Input**: Record audio and automatically transcribe to text using Whisper
 - 🔍 **RAG Integration**: Optional context enhancement using external document retrieval
-- 🔧 **External Tools Integration**: Connect to specialized APIs (weather, quotes, etc.) for real-time data
+- 🔧 **External Tools Integration**: Connect to specialized APIs (weather, quotes, calendar, etc.) for real-time data
 - 📄 **Document Viewer**: View and interact with various document types (PDF, CSV, DOCX, images, audio files, and more)
 - 🎵 **Audio File Support**: Play audio files (.wav, .mp3, .m4a, .flac, .ogg) directly in the document viewer
-- 💬 **Clean Chat Interface**: Modern, responsive web interface
+- 🗣️ **Voice Assistant API**: Full voice-to-voice assistant with audio transcription and TTS broadcast
+- 📅 **Calendar Integration**: Query your calendar with natural language
+- 💬 **Clean Chat Interface**: Modern, responsive web interface with mobile support
 - ⚡ **Fast & Local**: Runs entirely on your local machine with Ollama
 - 🛠 **Simple Setup**: Easy configuration and deployment
 
@@ -78,8 +80,13 @@ A clean, modern AI-powered chat application with optional RAG (Retrieval-Augment
 - `OLLAMA_URL`: Ollama API endpoint (default: `http://localhost:11434/api/chat`)
 - `RAG_API_URL`: Optional RAG service endpoint
 - `WHISPER_URL`: Whisper transcription service endpoint (default: `https://whisper.hlab.cam`)
+- `TTS_BROADCAST_URL`: TTS broadcast endpoint (default: `https://tts.hlab.cam/speak`)
+- `TTS_TIMEOUT`: TTS request timeout in seconds (default: `60`)
 - `SERVICE_TIMEOUT`: Timeout for external services in seconds (default: `60`)
+- `LOCAL_TIMEZONE`: Your local timezone (default: `America/Denver`)
 - `FLASK_DEBUG`: Debug mode (default: `True`)
+- `TOOL_WEATHER_ENABLED`: Enable weather tool (default: `false`)
+- `TOOL_CALENDAR_ENABLED`: Enable calendar tool (default: `false`)
 
 ### Available Models
 
@@ -103,6 +110,34 @@ InsightChat supports voice input for hands-free interaction:
 
 **Requirements**: A Whisper transcription service must be configured via `WHISPER_URL` in your `.env` file.
 
+## Voice Assistant API
+
+InsightChat includes a dedicated `/api/voice-query` endpoint for full voice-to-voice assistant integration with TTS broadcast:
+
+### Features
+
+- 🎤 Audio file transcription (via Whisper)
+- 🤖 Tool-aware AI responses (weather, calendar, RAG)
+- 📢 TTS broadcast to Google speakers
+- 🗣️ Configurable voice models and speakers
+
+### Quick Example
+
+```bash
+# Send audio file with TTS broadcast
+python test_voice_api.py \
+  --audio my_question.wav \
+  --speaker "media_player.bedroom" \
+  --tts-model "random"
+
+# Or send text query
+python test_voice_api.py \
+  --text "What's the weather today?" \
+  --broadcast
+```
+
+See **[VOICE_API.md](VOICE_API.md)** for complete API documentation and integration examples.
+
 ## RAG Integration
 
 To enable RAG (Retrieval-Augmented Generation):
@@ -113,32 +148,37 @@ To enable RAG (Retrieval-Augmented Generation):
 
 ## External Tools Integration
 
-InsightChat can integrate with external APIs to provide specialized real-time data (weather, quotes, etc.). See **[TOOLS.md](TOOLS.md)** for detailed documentation.
+InsightChat can integrate with external APIs to provide specialized real-time data (weather, quotes, calendar, etc.). See **[TOOLS.md](TOOLS.md)** for detailed documentation.
 
-### Quick Setup - Weather Integration
+### Quick Setup - Weather & Calendar Integration
 
-1. **Enable the weather tool in `.env`:**
+1. **Enable tools in `.env`:**
    ```bash
    TOOL_WEATHER_ENABLED=true
    TOOL_WEATHER_API_URL=http://localhost:8000
+   
+   TOOL_CALENDAR_ENABLED=true
+   TOOL_CALENDAR_API_URL=https://ics.hlab.cam
    ```
 
-2. **Start your PyWeather API** (or any compatible weather service)
+2. **Start your services** (if needed)
 
-3. **Ask weather questions naturally:**
+3. **Ask questions naturally:**
    - "What's the current temperature?"
-   - "Do I need an umbrella today?"
+   - "Do I have any meetings today?"
+   - "What's on my calendar tomorrow?"
    - "Is it windy outside?"
 
 The tool system automatically detects intent and calls appropriate APIs. No special syntax needed!
 
 ### Features
 
-- ✅ **Intent-Based Routing** - Automatically detects which tools to use
+- ✅ **Intent-Based Routing** - Automatically detects which tools to use based on query context
 - ✅ **Configuration-Driven** - Enable/disable tools via environment variables
 - ✅ **Extensible** - Easy to add new tools
 - ✅ **Works with RAG** - Combines tool data with document retrieval
 - ✅ **Graceful Degradation** - Works without tools if unavailable
+- ✅ **Smart Context Matching** - Distinguishes between similar queries (e.g., calendar events vs. document searches)
 
 For complete documentation on adding new tools, see **[TOOLS.md](TOOLS.md)**.
 
@@ -172,12 +212,13 @@ insightchat/
 │   ├── src/
 │   │   ├── app.py              # Main Flask application
 │   │   ├── chat/
-│   │   │   ├── routes.py       # Chat routes and logic
+│   │   │   ├── routes.py       # Chat routes and API endpoints
 │   │   │   ├── utils.py        # Utility functions
 │   │   │   ├── tool_router.py  # External tools orchestration
 │   │   │   ├── tools/          # External API integrations
 │   │   │   │   ├── base_tool.py
 │   │   │   │   ├── weather_tool.py
+│   │   │   │   ├── calendar_tool.py
 │   │   │   │   └── quotes_tool.py
 │   │   │   └── whisper_client.py # Whisper API client
 │   │   └── static/
@@ -185,10 +226,12 @@ insightchat/
 │   │           └── style.css   # Styles
 │   └── templates/
 │       └── chat.html          # Main chat template
+├── test_voice_api.py          # Voice API test CLI tool
 ├── .env                       # Your configuration (gitignored)
 ├── .env.example               # Environment variables template
 ├── pyproject.toml             # Project dependencies
 ├── TOOLS.md                   # External tools documentation
+├── VOICE_API.md               # Voice assistant API documentation
 └── README.md                  # This file
 ```
 
