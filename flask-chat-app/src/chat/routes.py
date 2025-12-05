@@ -520,7 +520,8 @@ def get_document():
     from .utils import fetch_document_content
     
     source = request.args.get("source")
-    print(f"DEBUG: Document route called with source: '{source}'")
+    format_type = request.args.get("format", "raw")  # 'text' or 'raw'
+    print(f"DEBUG: Document route called with source: '{source}', format: '{format_type}'")
     print(f"DEBUG: All request args: {dict(request.args)}")
     
     if not source:
@@ -550,6 +551,43 @@ def get_document():
         
         # Determine content type based on file extension
         file_extension = decoded_source.split('.')[-1].lower() if '.' in decoded_source else ''
+        
+        # Handle DOCX text extraction if format=text is requested
+        if format_type == 'text' and file_extension == 'docx':
+            print(f"DEBUG: Extracting text from DOCX file")
+            try:
+                from docx import Document
+                from io import BytesIO
+                
+                # Convert to bytes if needed
+                if isinstance(content, str):
+                    import base64
+                    content = base64.b64decode(content)
+                
+                # Parse DOCX and extract text
+                doc = Document(BytesIO(content))
+                text_content = []
+                
+                for paragraph in doc.paragraphs:
+                    if paragraph.text.strip():
+                        text_content.append(paragraph.text)
+                
+                # Also extract text from tables
+                for table in doc.tables:
+                    for row in table.rows:
+                        row_text = ' | '.join(cell.text.strip() for cell in row.cells if cell.text.strip())
+                        if row_text:
+                            text_content.append(row_text)
+                
+                extracted_text = '\n\n'.join(text_content)
+                print(f"DEBUG: Successfully extracted {len(extracted_text)} characters from DOCX")
+                return extracted_text, 200, {'Content-Type': 'text/plain; charset=utf-8'}
+                
+            except Exception as docx_error:
+                print(f"DEBUG: DOCX extraction failed: {docx_error}")
+                import traceback
+                print(f"DEBUG: DOCX extraction traceback: {traceback.format_exc()}")
+                return jsonify({"error": f"Failed to extract text from DOCX: {str(docx_error)}"}), 500
         content_type_map = {
             'png': 'image/png',
             'jpg': 'image/jpeg',
@@ -1017,7 +1055,7 @@ def voice_query():
         print(f"DEBUG: Calling LLM with model: {model}")
         
         # Use a more conversational system prompt for voice
-        voice_system_prompt = "You are a helpful voice assistant. Provide clear, concise responses suitable for speech. Keep answers brief unless detail is specifically requested."
+        voice_system_prompt = "You are a helpful voice assistant. Provide clear, concise responses suitable for speech. Keep answers brief unless detail is specifically requested. Do not include asterisks or * or ** in your response"
         
         response_text, _ = prompt_model(
             model=model,
@@ -1040,7 +1078,7 @@ def voice_query():
                     
                     # Build TTS request payload
                     tts_payload = {
-                        "text": response_text,
+                        "text":  response_text.replace('*', ''),
                         "speaker": tts_speaker
                     }
                     if tts_model:

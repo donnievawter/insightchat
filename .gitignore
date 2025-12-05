@@ -20,3 +20,5 @@ foo.py
 build/
 *.egg-info/
 .venv/
+scratch
+scratch.md
