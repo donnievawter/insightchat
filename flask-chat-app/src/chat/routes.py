@@ -1037,31 +1037,35 @@ def voice_query():
             "content": transcribed_text
         }]
         
-        # Build context for this query
-        combined_context = tool_context if tool_context else ""
-        if context_text and not tools_handled_query:
-            if combined_context:
-                combined_context += "\n\n" + context_text
-            else:
-                combined_context = context_text
-        
-        # Prepare temp history with context
-        if combined_context:
-            temp_history = [{"role": "system", "content": combined_context}] + message_history
-        else:
-            temp_history = message_history
-        
         # === CALL LLM ===
         print(f"DEBUG: Calling LLM with model: {model}")
         
         # Use a more conversational system prompt for voice
-        voice_system_prompt = "You are a helpful voice assistant. Provide clear, concise responses suitable for speech. Keep answers brief unless detail is specifically requested. Do not include asterisks or * or ** in your response"
+        voice_system_prompt = '''You are a helpful voice assistant. 
+        Provide clear, concise responses suitable for speech. 
+        Do not include emoticons or characters that cannot be spoken.
+        Keep answers brief unless detail is specifically requested. 
+        Do not include asterisks or * or ** in your response. 
+        Respond in a natural, conversational tone.
+        Do not use markdown formatting.'''
+        
+        # Build context for this query, prepending voice instructions
+        combined_context = voice_system_prompt
+        
+        if tool_context:
+            combined_context += "\n\n" + tool_context
+        
+        if context_text and not tools_handled_query:
+            combined_context += "\n\n" + context_text
+        
+        # Prepare temp history with combined context (voice prompt + tool/RAG data)
+        temp_history = [{"role": "system", "content": combined_context}] + message_history
         
         response_text, _ = prompt_model(
             model=model,
             prompt=transcribed_text,
             history=temp_history[:-1],
-            system_prompt=voice_system_prompt
+            system_prompt=""  # Empty string signals system message already in history
         )
         
         print(f"DEBUG: LLM response length: {len(response_text)} chars")
@@ -1077,8 +1081,14 @@ def voice_query():
                     tts_timeout = int(os.getenv('TTS_TIMEOUT', '10'))
                     
                     # Build TTS request payload
+                    # Limit TTS text length to prevent overly long speech
+                    MAX_TTS_TEXT_LENGTH = 600
+                    tts_text = response_text.replace('*', '')
+                    if len(tts_text) > MAX_TTS_TEXT_LENGTH:
+                        tts_text = tts_text[:MAX_TTS_TEXT_LENGTH].rsplit(' ', 1)[0]
+                    
                     tts_payload = {
-                        "text":  response_text.replace('*', ''),
+                        "text": tts_text,
                         "speaker": tts_speaker
                     }
                     if tts_model:

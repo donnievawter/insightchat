@@ -12,7 +12,8 @@ def clean_markdown(text):
 def build_chat_payload(model, prompt, prior_messages=None, system_prompt=None, temperature=None):
     messages = prior_messages[:] if prior_messages else []
 
-    if not any(m["role"] == "system" for m in messages):
+    # Only add system prompt if one doesn't exist AND system_prompt is provided
+    if system_prompt is not None and not any(m["role"] == "system" for m in messages):
         messages.insert(0, {"role": "system", "content": system_prompt})
 
     messages.append({"role": "user", "content": prompt})
@@ -256,8 +257,11 @@ def get_available_models(ollama_base_url=None):
 
 def prompt_model(model, prompt, history=None, system_prompt=None):
     """Send a prompt to Ollama and get the response"""
+    # If system_prompt is None, use default. If empty string, skip (already in history)
     if system_prompt is None:
         system_prompt = DEFAULT_SYSTEM_PROMPT
+    elif system_prompt == "":
+        system_prompt = None  # Signal to build_chat_payload to skip adding system message
     
     ollama_url = os.getenv("OLLAMA_URL", "http://localhost:11434/api/chat")
     
