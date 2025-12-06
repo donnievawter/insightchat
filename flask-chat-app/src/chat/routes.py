@@ -1047,7 +1047,8 @@ def voice_query():
         Keep answers brief unless detail is specifically requested. 
         Do not include asterisks or * or ** in your response. 
         Respond in a natural, conversational tone.
-        Do not use markdown formatting.'''
+        Do not use markdown formatting.
+        If the response contains currency amounts, read them out loud with the currency name. For example, "$20" should be read as "20 dollars".'''
         
         # Build context for this query, prepending voice instructions
         combined_context = voice_system_prompt
