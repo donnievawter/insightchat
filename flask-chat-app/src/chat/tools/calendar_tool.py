@@ -94,6 +94,10 @@ class CalendarTool(BaseTool):
             if not any(word in message_lower for word in ['document', 'file', 'pdf', 'email', 'attachment']):
                 return True
         
+        # Match "when is the next" or "when is my next" patterns
+        if re.search(r'when\s+is\s+(the|my)\s+next', message_lower):
+            return True
+        
         return False
     
     def _determine_endpoint(self, user_message: str) -> tuple[str, Dict[str, Any]]:
@@ -104,6 +108,12 @@ class CalendarTool(BaseTool):
             tuple: (endpoint_path, params_dict)
         """
         message_lower = user_message.lower()
+        
+        # Check for "when is the next X" or "when is my next X" pattern
+        # Return next 30 days of events - LLM will filter based on search term
+        next_event_pattern = re.search(r'when\s+is\s+(the|my)\s+next', message_lower)
+        if next_event_pattern:
+            return '/calendar/events/next/30', {}
         
         # Word to number mapping for text numbers
         word_to_num = {
@@ -198,6 +208,9 @@ class CalendarTool(BaseTool):
                 timeout=self.timeout
             )
             
+            # Store search term for filtering if present
+            search_term = params.get('search')
+            
             response.raise_for_status()
             data = response.json()
             
@@ -215,10 +228,13 @@ class CalendarTool(BaseTool):
                     }
                 }
             else:
+                # Format all events - LLM will filter based on the query
+                formatted_response = self._format_events_response(data, endpoint)
+                
                 return {
                     'success': True,
                     'data': data,
-                    'formatted_response': self._format_events_response(data, endpoint),
+                    'formatted_response': formatted_response,
                     'metadata': {
                         'tool': self.name,
                         'endpoint': endpoint,
@@ -252,6 +268,82 @@ class CalendarTool(BaseTool):
         """Format health check response."""
         status = data.get('status', 'unknown')
         return f"Calendar API Status: {status}"
+    
+    def _format_next_event_response(self, data: Dict[str, Any], search_term: str, original_query: str) -> str:
+        """
+        Format response for 'when is the next X' queries.
+        Filters events by search term and returns the first match.
+        
+        Args:
+            data: API response data with events
+            search_term: Term to search for in event summaries
+            original_query: Original user query
+            
+        Returns:
+            Formatted string with the next matching event
+        """
+        from html import unescape
+        
+        events = data.get('events', [])
+        
+        if not events:
+            return f"No events found in the next 30 days matching '{search_term}'."
+        
+        # Filter events by search term (case-insensitive)
+        matching_events = [
+            event for event in events
+            if search_term.lower() in event.get('summary', '').lower()
+        ]
+        
+        if not matching_events:
+            return f"No events found in the next 30 days matching '{search_term}'."
+        
+        # Get the first (next) matching event
+        event = matching_events[0]
+        summary = event.get('summary', 'Untitled Event')
+        start = event.get('start', '')
+        end = event.get('end', '')
+        location = event.get('location', '')
+        description = event.get('description', '')
+        
+        # Format the response
+        result = f"Your next '{search_term}' event:\n\n"
+        result += f"📌 {summary}\n"
+        
+        # Format time
+        if start:
+            try:
+                local_tz = ZoneInfo(LOCAL_TIMEZONE)
+                start_dt = datetime.strptime(start, '%Y-%m-%d %H:%M')
+                start_dt = start_dt.replace(tzinfo=local_tz)
+                
+                # Show full date since this could be weeks away
+                date_str = start_dt.strftime('%A, %B %-d, %Y')
+                result += f"📅 {date_str}\n"
+                
+                if end:
+                    end_dt = datetime.strptime(end, '%Y-%m-%d %H:%M')
+                    end_dt = end_dt.replace(tzinfo=local_tz)
+                    time_str = f"{start_dt.strftime('%-I:%M %p')} - {end_dt.strftime('%-I:%M %p %Z')}"
+                else:
+                    time_str = start_dt.strftime('%-I:%M %p %Z')
+                
+                result += f"🕒 {time_str}\n"
+            except Exception as e:
+                logger.warning(f"Could not parse time '{start}': {e}")
+                result += f"🕒 {start}\n"
+        
+        if location:
+            result += f"📍 {location}\n"
+        
+        if description:
+            # Clean HTML tags and decode entities
+            clean_desc = re.sub(r'<[^>]+>', '', description)
+            clean_desc = unescape(clean_desc).strip()
+            if clean_desc and len(clean_desc) < 200:
+                result += f"\n{clean_desc}"
+        
+        return result
     
     def _format_events_response(self, data: Dict[str, Any], endpoint: str) -> str:
         """
