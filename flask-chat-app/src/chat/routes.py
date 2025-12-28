@@ -413,6 +413,65 @@ def tools_status():
             "error": str(e)
         }), 500
 
+@chat_bp.route("/browse_documents", methods=["GET"])
+def browse_documents():
+    """Get list of all documents available in the RAG system for manual selection"""
+    from flask import jsonify
+    
+    rag_api_url = os.getenv("RAG_API_URL")
+    if not rag_api_url:
+        return jsonify({"error": "RAG API not configured"}), 503
+    
+    try:
+        # Use the new /documents endpoint
+        response = requests.get(
+            f"{rag_api_url}/documents",
+            timeout=15
+        )
+        
+        if response.status_code != 200:
+            return jsonify({"error": f"RAG API error: {response.status_code}"}), 500
+        
+        data = response.json()
+        documents = data.get('documents', [])
+        total = data.get('total_documents', len(documents))
+        
+        # Enhance document list with metadata for UI
+        enhanced_docs = []
+        for doc in documents:
+            doc_path = doc.get('source', '')
+            filename = doc_path.split('/')[-1]
+            file_type = doc.get('file_type', '')
+            chunk_count = doc.get('chunk_count', 0)
+            
+            # Determine file extension from path if not provided
+            if not file_type or file_type == 'unknown':
+                file_type = doc_path.split('.')[-1].lower() if '.' in doc_path else 'unknown'
+            
+            is_csv = file_type == 'csv'
+            
+            enhanced_docs.append({
+                'path': doc_path,
+                'filename': filename,
+                'file_type': file_type,
+                'is_csv': is_csv,
+                'chunk_count': chunk_count
+            })
+        
+        print(f"DEBUG: Found {total} documents from RAG API")
+        
+        return jsonify({
+            'success': True,
+            'documents': enhanced_docs,
+            'count': total
+        })
+            
+    except Exception as e:
+        print(f"DEBUG: Error fetching documents: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": f"Failed to fetch documents: {str(e)}"}), 500
+
 @chat_bp.route("/load_source", methods=["POST"])
 def load_source():
     """Load expanded context for a specific source and re-run the last query"""

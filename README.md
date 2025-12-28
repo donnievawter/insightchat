@@ -146,6 +146,24 @@ To enable RAG (Retrieval-Augmented Generation):
 2. Configure `RAG_API_URL` in your `.env` file
 3. Toggle "Use RAG Context" in the chat interface
 
+### Document Browser
+
+When RAG is enabled, InsightChat includes a **Document Browser** feature that lets you manually select and load documents from your RAG system:
+
+**Features:**
+- 📚 **Browse All Documents** - View all documents indexed in your RAG system
+- 🔍 **Live Search** - Filter documents by filename or folder path (e.g., type "topology" to see all documents in the topology directory)
+- 📥 **Manual Load** - Load all chunks from any document, even if it wasn't returned in automatic search results
+- 👁️ **Quick Preview** - View documents directly from the browser
+
+**How to Use:**
+1. Click the "📚 Browse Documents" button in the chat interface
+2. Search for documents by typing in the search box (searches both filenames and paths)
+3. Click "📥 Load" on any document to include all its chunks in your next question
+4. Click "👁️ View" to preview the document content
+
+This is especially useful when you know a specific document is relevant but the automatic RAG search didn't include it in the results.
+
 ## External Tools Integration
 
 InsightChat can integrate with external APIs to provide specialized real-time data (weather, quotes, calendar, etc.). See **[TOOLS.md](TOOLS.md)** for detailed documentation.
