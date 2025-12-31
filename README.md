@@ -164,6 +164,33 @@ When RAG is enabled, InsightChat includes a **Document Browser** feature that le
 
 This is especially useful when you know a specific document is relevant but the automatic RAG search didn't include it in the results.
 
+### File Upload
+
+Upload new documents directly to your RAG system from the chat interface:
+
+**Features:**
+- 📤 **Direct Upload** - Upload files directly from the chat interface to your RAG system
+- 🔄 **Automatic Ingestion** - Files are automatically processed and indexed by the RAG system
+- 📁 **Multiple Formats** - Supports PDF, TXT, MD, CSV, DOCX, DOC, JSON, XML, HTML, and more
+
+**How to Use:**
+1. Click the "📤 Upload File" button in the chat interface
+2. Select the file you want to upload
+3. Wait for the success notification
+4. The file will appear in the Document Browser shortly after ingestion completes
+
+**Note:** Upload uses a proxy endpoint to avoid CORS issues, so files are securely uploaded through the Flask backend to the RAG API.
+
+### Response Management
+
+**Download Markdown:**
+- Every assistant response includes a "💾 MD" button
+- Click to download the raw markdown content of that response
+- Perfect for saving documentation, analysis results, or generated content
+- Downloads as a `.md` file with timestamp
+
+This feature is especially useful when the AI generates valuable documentation (like network topology descriptions) that you want to save and reuse.
+
 ## External Tools Integration
 
 InsightChat can integrate with external APIs to provide specialized real-time data (weather, quotes, calendar, etc.). See **[TOOLS.md](TOOLS.md)** for detailed documentation.

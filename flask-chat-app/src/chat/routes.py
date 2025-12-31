@@ -275,14 +275,23 @@ def chat():
                     if response.status_code == 200:
                         available_docs = response.json().get('documents', [])
                         for doc in available_docs:
-                            # Determine file type for special handling hints
-                            file_ext = doc.split('.')[-1].lower() if '.' in doc else ''
-                            is_csv = file_ext == 'csv'
+                            # Handle both old format (string) and new format (dict)
+                            if isinstance(doc, dict):
+                                doc_path = doc.get('source', '')
+                                file_type = doc.get('file_type', '')
+                                filename = doc_path.split('/')[-1] if doc_path else ''
+                            else:
+                                # Old format - doc is a string path
+                                doc_path = doc
+                                filename = doc.split('/')[-1]
+                                file_type = doc.split('.')[-1].lower() if '.' in doc else ''
+                            
+                            is_csv = file_type == 'csv'
                             sources_found.append({
-                                'path': doc,
-                                'filename': doc.split('/')[-1],
+                                'path': doc_path,
+                                'filename': filename,
                                 'is_csv': is_csv,
-                                'file_type': file_ext
+                                'file_type': file_type
                             })
                         print(f"DEBUG: Found {len(sources_found)} available documents for loading")
                 except requests.RequestException as e:
@@ -471,6 +480,62 @@ def browse_documents():
         import traceback
         traceback.print_exc()
         return jsonify({"error": f"Failed to fetch documents: {str(e)}"}), 500
+
+@chat_bp.route("/upload_to_rag", methods=["POST"])
+def upload_to_rag():
+    """Proxy endpoint to upload files to RAG API (avoids CORS issues)"""
+    from flask import jsonify
+    
+    rag_api_url = os.getenv("RAG_API_URL")
+    if not rag_api_url:
+        return jsonify({"error": "RAG API not configured"}), 503
+    
+    # Check if file is in request
+    if 'file' not in request.files:
+        return jsonify({"error": "No file provided"}), 400
+    
+    file = request.files['file']
+    
+    if file.filename == '':
+        return jsonify({"error": "No file selected"}), 400
+    
+    try:
+        # Forward the file to RAG API
+        files = {'file': (file.filename, file.stream, file.content_type)}
+        
+        print(f"DEBUG: Uploading file {file.filename} to RAG API")
+        
+        response = requests.post(
+            f"{rag_api_url}/upload",
+            files=files,
+            timeout=120  # Longer timeout for file upload
+        )
+        
+        print(f"DEBUG: RAG API upload response: {response.status_code}")
+        
+        if response.status_code == 200:
+            result = response.json()
+            return jsonify({
+                "success": True,
+                "message": f"File '{file.filename}' uploaded successfully",
+                "details": result
+            })
+        else:
+            error_text = response.text
+            print(f"DEBUG: RAG API upload error: {error_text}")
+            return jsonify({
+                "error": f"RAG API returned status {response.status_code}",
+                "details": error_text
+            }), response.status_code
+            
+    except requests.RequestException as e:
+        print(f"DEBUG: Error uploading to RAG API: {e}")
+        return jsonify({"error": f"Failed to upload file: {str(e)}"}), 500
+    except Exception as e:
+        print(f"DEBUG: Unexpected error in upload: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": f"Unexpected error: {str(e)}"}), 500
 
 @chat_bp.route("/load_source", methods=["POST"])
 def load_source():

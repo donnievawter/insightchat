@@ -39,6 +39,9 @@
                 <button type="button" class="browse-docs-btn" onclick="openDocumentBrowser()" title="Browse and load documents from RAG system">
                     📚 Browse Documents
                 </button>
+                <button type="button" class="upload-file-btn" onclick="openFileUpload()" title="Upload file to RAG system">
+                    📤 Upload File
+                </button>
                 {% endif %}
             </div>
         </div>
@@ -52,7 +55,13 @@
             <div class="message {{ message.role }}">
                 <div class="message-header">
                     <span class="message-role">{{ message.role.title() }}</span>
-                    {% if message.role == 'assistant' and message.get('sources') %}
+                    <div class="message-header-actions">
+                        {% if message.role == 'assistant' %}
+                        <button class="download-markdown-btn" onclick="downloadMarkdownResponse('{{ loop.index0 }}')" title="Download as Markdown">
+                            💾 MD
+                        </button>
+                        {% endif %}
+                        {% if message.role == 'assistant' and message.get('sources') %}
                     <button class="toggle-chunks-btn" onclick="toggleChunks('{{ loop.index }}')">
                         <span id="chunks-icon-{{ loop.index }}">📄</span>
                         <span id="chunks-text-{{ loop.index }}">Show Sources ({{ message.sources|length }})</span>
@@ -63,6 +72,7 @@
                         <span id="chunks-text-{{ loop.index }}">Show Sources ({{ message.rag_chunks|length }})</span>
                     </button>
                     {% endif %}
+                    </div>
                 </div>
                 <div class="message-content">{{ message.content | safe }}</div>
 
@@ -1749,6 +1759,101 @@
                 closeDocumentBrowser();
             }
         });
+
+        // Download assistant response as markdown
+        function downloadMarkdownResponse(messageIndex, button) {
+            // Get all messages
+            const messages = {{ message_history | tojson }};
+            
+            if (messageIndex >= messages.length) {
+                showNotification('Message not found', 'error');
+                return;
+            }
+            
+            const message = messages[messageIndex];
+            
+            // Only download if it's an assistant message
+            if (message.role !== 'assistant') {
+                showNotification('Can only download assistant responses', 'error');
+                return;
+            }
+            
+            const markdownContent = message.content;
+            
+            // Create a blob with the markdown content
+            const blob = new Blob([markdownContent], { type: 'text/markdown' });
+            const url = URL.createObjectURL(blob);
+            
+            // Create a temporary link and trigger download
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `response-${Date.now()}.md`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            showNotification('Markdown downloaded', 'success');
+        }
+
+        // File upload functionality
+        function openFileUpload() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.pdf,.txt,.md,.csv,.docx,.doc,.json,.xml,.html';
+            input.onchange = (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    uploadFileToRAG(file);
+                }
+            };
+            input.click();
+        }
+
+        async function uploadFileToRAG(file) {
+            if (!file) {
+                showNotification('No file selected', 'error');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                showNotification(`Uploading ${file.name}...`, 'info');
+
+                console.log('Uploading file:', file.name);
+                
+                // Use our proxy endpoint to avoid CORS issues
+                const response = await fetch('/upload_to_rag', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                console.log('Upload response status:', response.status);
+
+                if (!response.ok) {
+                    // Try to get error details
+                    let errorMessage = 'Upload failed';
+                    try {
+                        const result = await response.json();
+                        errorMessage = result.error || result.detail || result.message || errorMessage;
+                    } catch {
+                        errorMessage = `Upload failed with status ${response.status}`;
+                    }
+                    throw new Error(errorMessage);
+                }
+
+                const result = await response.json();
+                console.log('Upload result:', result);
+
+                showNotification(`File "${file.name}" uploaded successfully! It will appear in Browse Documents shortly.`, 'success');
+
+            } catch (error) {
+                console.error('Error uploading file:', error);
+                showNotification(`Error uploading file: ${error.message}`, 'error');
+            }
+        }
     </script>
 </body>
 

@@ -275,6 +275,52 @@ body {
 
 .message-header {
     margin-bottom: 6px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+}
+
+.message-header-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.download-markdown-btn {
+    background: #238636;
+    color: white;
+    border: 1px solid #238636;
+    padding: 4px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 500;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+.download-markdown-btn:hover {
+    background: #2ea043;
+    transform: translateY(-1px);
+}
+
+.upload-file-btn {
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.2s;
+    margin-left: 8px;
+}
+
+.upload-file-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
 }
 
 .message-role {
