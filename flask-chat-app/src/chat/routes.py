@@ -258,8 +258,39 @@ def chat():
                 print("DEBUG: No context retrieved from RAG or tools")
                 temp_history = session["message_history"]
         else:
-            # RAG not enabled - check if we have tool context
-            if tool_context:
+            # RAG not enabled - but check if we have pre-loaded context from Load Source button
+            if loaded_context:
+                print(f"DEBUG: Using pre-loaded context (RAG disabled but context loaded manually)")
+                combined_context = loaded_context
+                
+                # Parse source metadata if available
+                if loaded_source_meta:
+                    import json
+                    try:
+                        meta = json.loads(loaded_source_meta)
+                        source_path = meta.get('source_path', '')
+                        context_type = meta.get('context_type', 'unknown')
+                        print(f"DEBUG: Loaded context from {source_path} ({context_type})")
+                        
+                        # Add source info for display
+                        if source_path:
+                            file_ext = source_path.split('.')[-1].lower() if '.' in source_path else ''
+                            is_csv = file_ext == 'csv' or context_type == 'csv_full'
+                            sources_found.append({
+                                'path': source_path,
+                                'filename': source_path.split('/')[-1],
+                                'is_csv': is_csv,
+                                'file_type': file_ext
+                            })
+                    except json.JSONDecodeError:
+                        print("DEBUG: Could not parse loaded source metadata")
+                
+                # Combine with tool context if present
+                if tool_context:
+                    combined_context = tool_context + "\n\n" + combined_context
+                
+                temp_history = [{"role": "system", "content": combined_context}] + session["message_history"]
+            elif tool_context:
                 print(f"DEBUG: Using tool context only (RAG disabled): {len(tool_context)} chars")
                 temp_history = [{"role": "system", "content": tool_context}] + session["message_history"]
             else:
