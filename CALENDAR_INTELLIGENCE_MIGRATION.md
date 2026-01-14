@@ -4,6 +4,8 @@
 
 Created a reusable Python library called **calendar-intelligence** that extracts calendar analysis logic from your chat application, making it available to other applications (voice apps, CLIs, dashboards, etc.).
 
+**Repository**: https://github.com/donnievawter/calendar-intelligence
+
 ## Architecture
 
 ### Repository Pattern (Pluggable Data Sources)
@@ -60,10 +62,26 @@ The calling application decides whether to:
 
 ## Installation
 
+The library is now published as a standalone GitHub repository and can be installed in any project:
+
 ```bash
-# In any project
-cd /path/to/your/project
-uv pip install -e /opt/dockerapps/insightchat/calendar-intelligence
+# Install from GitHub (recommended)
+uv pip install git+https://github.com/donnievawter/calendar-intelligence.git
+
+# Or with a specific version tag
+uv pip install git+https://github.com/donnievawter/calendar-intelligence.git@v0.1.0
+
+# In Docker (add to Dockerfile)
+RUN apt-get update && apt-get install -y git
+RUN uv pip install git+https://github.com/donnievawter/calendar-intelligence.git
+```
+
+**In pyproject.toml**:
+```toml
+[project]
+dependencies = [
+    "calendar-intelligence @ git+https://github.com/donnievawter/calendar-intelligence.git",
+]
 ```
 
 ## Usage
@@ -177,10 +195,14 @@ await say(result['formatted_text'])
 
 ## Testing
 
+The library is now in a separate repository and can be tested independently:
+
 ```bash
-# Test the library
-cd /opt/dockerapps/insightchat/calendar-intelligence
-/opt/dockerapps/insightchat/.venv/bin/python test_library.py
+# Clone and test the library
+git clone https://github.com/donnievawter/calendar-intelligence.git
+cd calendar-intelligence
+uv pip install -e .
+python test_library.py
 
 # Expected output:
 # ✅ Repository created
@@ -220,45 +242,63 @@ analyzer = CalendarAnalyzer(repository=repository)
 # Everything else works exactly the same!
 ```
 
-## Next Steps
+## Deployment Architecture
 
-### Option 1: Keep in Monorepo (Recommended for Now)
+### Current Setup (Separate Repository)
+
+The library now lives in its own GitHub repository, and applications pull it as a dependency:
+
 ```
-/opt/dockerapps/insightchat/
-├── flask-chat-app/          # Chat application
-├── calendar-intelligence/   # Shared library
-└── voice-app/              # Future: Voice assistant
+GitHub Repositories:
+├── calendar-intelligence (public)
+│   └── Standalone Python library
+│
+├── insightchat
+│   ├── pyproject.toml → depends on calendar-intelligence from Git
+│   └── Dockerfile → installs git, pulls library during build
+│
+└── voice-assistant (future)
+    └── pyproject.toml → depends on calendar-intelligence from Git
 ```
 
-Benefits:
-- Easy to develop and test together
-- Share one virtual environment
-- Simple imports with `uv pip install -e ../calendar-intelligence`
+**Benefits**:
+- ✅ Independent versioning
+- ✅ Works across Docker containers and VMs
+- ✅ No shared filesystem required
+- ✅ Can use in any Python project
+- ✅ Public repo enables easy sharing and contributions
 
-### Option 2: Move to Separate Repository (Later)
-When the library is stable:
+### Installation in Applications
+
+**InsightChat (current)**:
+```toml
+# pyproject.toml
+[project]
+requires-python = ">=3.11"
+dependencies = [
+    "calendar-intelligence @ git+https://github.com/donnievawter/calendar-intelligence.git",
+]
+```
+
+**Voice Assistant (future)**:
+```dockerfile
+# Dockerfile
+FROM python:3.11-slim
+RUN apt-get update && apt-get install -y git
+RUN pip install git+https://github.com/donnievawter/calendar-intelligence.git
+```
+
+### Version Management
+
+Use Git tags for version control:
+
 ```bash
-mv calendar-intelligence /opt/dockerapps/calendar-intelligence
-cd /opt/dockerapps/calendar-intelligence
-git init
-git remote add origin <new-repo-url>
-```
+# In calendar-intelligence repo
+git tag v0.1.0
+git push origin v0.1.0
 
-Then install from Git:
-```bash
-uv pip install git+https://github.com/you/calendar-intelligence.git
-```
-
-### Option 3: Publish to PyPI (Future)
-```bash
-cd calendar-intelligence
-uv build
-uv publish
-```
-
-Then anyone can:
-```bash
-uv pip install calendar-intelligence
+# In application
+uv pip install git+https://github.com/donnievawter/calendar-intelligence.git@v0.1.0
 ```
 
 ## Documentation
