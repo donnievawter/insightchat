@@ -1001,6 +1001,340 @@ body {
     font-family: monospace;
 }
 
+/* Jupyter Notebook Document Viewer Styles */
+.notebook-document-container {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    background: #0d1117;
+}
+
+.notebook-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    background: #161b22;
+    border-bottom: 1px solid #30363d;
+    border-radius: 12px 12px 0 0;
+}
+
+.notebook-title {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+    min-width: 0;
+}
+
+.notebook-icon {
+    font-size: 1.2em;
+    color: #f0883e;
+}
+
+.notebook-info {
+    min-width: 0;
+    flex: 1;
+}
+
+.notebook-name {
+    font-weight: 600;
+    color: #e6edf3;
+    font-size: 0.95em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.notebook-source {
+    font-size: 0.75em;
+    color: #7d8590;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-top: 2px;
+}
+
+.notebook-content-area {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    background: #0d1117;
+}
+
+.notebook-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 20px;
+    color: #7d8590;
+}
+
+.notebook-loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid #21262d;
+    border-top-color: #58a6ff;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin-bottom: 12px;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.notebook-error {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 20px;
+    color: #f85149;
+    text-align: center;
+}
+
+.notebook-error-icon {
+    font-size: 3em;
+    margin-bottom: 16px;
+}
+
+.notebook-error-text {
+    max-width: 600px;
+    line-height: 1.6;
+}
+
+.notebook-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 20px;
+    color: #7d8590;
+    text-align: center;
+}
+
+.notebook-empty-icon {
+    font-size: 3em;
+    margin-bottom: 16px;
+}
+
+/* Notebook cells container */
+.notebook-cells {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.notebook-cell {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.notebook-cell-markdown {
+    padding: 16px;
+}
+
+.notebook-cell-markdown h1,
+.notebook-cell-markdown h2,
+.notebook-cell-markdown h3 {
+    margin-top: 1em;
+    margin-bottom: 0.5em;
+}
+
+.notebook-cell-markdown h1:first-child,
+.notebook-cell-markdown h2:first-child,
+.notebook-cell-markdown h3:first-child {
+    margin-top: 0;
+}
+
+.notebook-cell-code {
+    display: flex;
+    flex-direction: column;
+}
+
+.notebook-cell-input {
+    display: flex;
+    gap: 8px;
+    padding: 12px;
+    background: #0d1117;
+}
+
+.execution-count {
+    font-family: 'SF Mono', Consolas, Monaco, monospace;
+    font-size: 0.85em;
+    color: #7d8590;
+    padding: 4px 8px;
+    background: #161b22;
+    border-radius: 4px;
+    white-space: nowrap;
+    align-self: flex-start;
+    min-width: 60px;
+    text-align: center;
+}
+
+.notebook-code-block {
+    flex: 1;
+    margin: 0;
+    background: #0d1117;
+    border: 1px solid #21262d;
+    border-radius: 4px;
+    padding: 12px;
+    overflow-x: auto;
+}
+
+.notebook-code-block code {
+    font-family: 'SF Mono', Consolas, Monaco, monospace;
+    font-size: 0.85em;
+    color: #e6edf3;
+    line-height: 1.5;
+}
+
+.notebook-cell-outputs {
+    border-top: 1px solid #30363d;
+}
+
+.notebook-output {
+    padding: 12px;
+    background: #0d1117;
+    border-bottom: 1px solid #21262d;
+}
+
+.notebook-output:last-child {
+    border-bottom: none;
+}
+
+.notebook-output-text pre,
+.notebook-output-stream pre {
+    margin: 0;
+    padding: 12px;
+    background: #161b22;
+    border: 1px solid #21262d;
+    border-radius: 4px;
+    overflow-x: auto;
+    font-family: 'SF Mono', Consolas, Monaco, monospace;
+    font-size: 0.85em;
+    color: #e6edf3;
+    line-height: 1.5;
+}
+
+.notebook-output-image {
+    text-align: center;
+    padding: 12px;
+}
+
+.notebook-output-html {
+    padding: 12px;
+}
+
+.notebook-output-error {
+    background: rgba(248, 81, 73, 0.1);
+    border-left: 4px solid #f85149;
+    padding: 12px;
+}
+
+.notebook-error-name {
+    color: #f85149;
+    font-weight: 600;
+    margin-bottom: 8px;
+    font-family: 'SF Mono', Consolas, Monaco, monospace;
+    font-size: 0.9em;
+}
+
+.notebook-error-traceback {
+    margin: 0;
+    padding: 12px;
+    background: #0d1117;
+    border: 1px solid #21262d;
+    border-radius: 4px;
+    overflow-x: auto;
+    font-family: 'SF Mono', Consolas, Monaco, monospace;
+    font-size: 0.8em;
+    color: #f85149;
+    line-height: 1.5;
+}
+
+.notebook-output-truncated {
+    margin-top: 12px;
+    padding: 8px 12px;
+    background: rgba(187, 128, 9, 0.15);
+    border: 1px solid #bb8009;
+    border-radius: 4px;
+    color: #f0883e;
+    font-size: 0.85em;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.show-more-btn {
+    background: #bb8009;
+    color: white;
+    border: none;
+    padding: 4px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.85em;
+    font-weight: 500;
+    transition: background 0.2s;
+}
+
+.show-more-btn:hover {
+    background: #d29922;
+}
+
+.notebook-cell-raw {
+    padding: 12px;
+}
+
+.notebook-raw-content {
+    margin: 0;
+    padding: 12px;
+    background: #0d1117;
+    border: 1px solid #21262d;
+    border-radius: 4px;
+    overflow-x: auto;
+    font-family: 'SF Mono', Consolas, Monaco, monospace;
+    font-size: 0.85em;
+    color: #7d8590;
+    line-height: 1.5;
+}
+
+/* Notebook actions */
+.notebook-actions {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.notebook-btn {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s;
+    font-size: 0.85em;
+    font-weight: 500;
+    background: linear-gradient(135deg, #238636 0%, #2ea043 100%);
+    color: white;
+}
+
+.notebook-btn:hover {
+    background: linear-gradient(135deg, #2ea043 0%, #46954a 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(46, 160, 67, 0.3);
+}
+
+.notebook-btn-icon {
+    font-size: 1em;
+}
+
 .csv-table-wrapper {
     flex: 1;
     overflow: auto;
@@ -2171,6 +2505,11 @@ body {
 
 .doc-badge.csv-badge {
     background: #1f6feb;
+    color: white;
+}
+
+.doc-badge.ipynb-badge {
+    background: #f0883e;
     color: white;
 }
 

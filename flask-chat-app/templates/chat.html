@@ -501,6 +501,7 @@
             const docxExtensions = ['docx', 'doc'];
             const emailExtensions = ['eml', 'emlx'];
             const audioExtensions = ['wav', 'mp3', 'm4a', 'flac', 'ogg'];
+            const notebookExtensions = ['ipynb'];
 
 
 
@@ -519,6 +520,9 @@
             } else if (audioExtensions.includes(fileExtension)) {
                 // Display audio player
                 displayAudioDocument(source, contentElement);
+            } else if (notebookExtensions.includes(fileExtension)) {
+                // Display Jupyter notebook
+                displayNotebookDocument(source, contentElement);
             } else if (textExtensions.includes(fileExtension)) {
                 // Display as text
                 displayTextDocument(source, startIndex, contentElement);
@@ -556,6 +560,380 @@
                     </div>
                 </div>
             `;
+        }
+
+        // Display Jupyter notebook documents
+        async function displayNotebookDocument(source, contentElement) {
+            const fileName = decodeURIComponent(source.split('/').pop());
+            
+            contentElement.innerHTML = `
+                <div class="notebook-document-container">
+                    <div class="notebook-header">
+                        <div class="notebook-title">
+                            <span class="notebook-icon">📓</span>
+                            <div class="notebook-info">
+                                <div class="notebook-name">${escapeHtml(fileName)}</div>
+                                <div class="notebook-source">Source: ${escapeHtml(decodeURIComponent(source))}</div>
+                            </div>
+                        </div>
+                        <div class="notebook-actions">
+                            <button onclick="downloadNotebook('${encodeURIComponent(source)}')" class="notebook-btn" title="Download Notebook">
+                                <span class="notebook-btn-icon">⬇️</span> Download
+                            </button>
+                        </div>
+                    </div>
+                    <div class="notebook-content-area">
+                        <div class="notebook-loading">
+                            <div class="notebook-loading-spinner"></div>
+                            <div>Loading notebook...</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            try {
+                // Load Prism.js for syntax highlighting
+                await loadPrismSyntaxHighlighting();
+                
+                // Fetch notebook JSON
+                const response = await fetch('{{ url_for("chat.get_document") }}?source=' + encodeURIComponent(source));
+                if (!response.ok) {
+                    throw new Error('Notebook file not found or not accessible');
+                }
+                
+                const notebookData = await response.json();
+                
+                // Validate notebook format
+                if (!notebookData.nbformat || notebookData.nbformat !== 4) {
+                    throw new Error(`Unsupported notebook version (nbformat ${notebookData.nbformat || 'unknown'}). Only nbformat 4 is supported.`);
+                }
+                
+                // Render notebook content
+                const notebookContentArea = contentElement.querySelector('.notebook-content-area');
+                renderNotebook(notebookData, notebookContentArea);
+                
+            } catch (error) {
+                const notebookContentArea = contentElement.querySelector('.notebook-content-area');
+                notebookContentArea.innerHTML = `
+                    <div class="notebook-error">
+                        <div class="notebook-error-icon">⚠️</div>
+                        <div class="notebook-error-text">
+                            <strong>Error loading notebook:</strong><br>
+                            ${escapeHtml(error.message)}
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        // Render complete notebook structure
+        function renderNotebook(notebookData, containerElement) {
+            const cells = notebookData.cells || [];
+            
+            if (cells.length === 0) {
+                containerElement.innerHTML = `
+                    <div class="notebook-empty">
+                        <div class="notebook-empty-icon">📝</div>
+                        <div class="notebook-empty-text">This notebook contains no cells</div>
+                    </div>
+                `;
+                return;
+            }
+            
+            let notebookHtml = '<div class="notebook-cells">';
+            
+            cells.forEach((cell, index) => {
+                notebookHtml += renderNotebookCell(cell, index);
+            });
+            
+            notebookHtml += '</div>';
+            containerElement.innerHTML = notebookHtml;
+            
+            // Apply Prism syntax highlighting to all code blocks
+            if (window.Prism) {
+                Prism.highlightAllUnder(containerElement);
+            }
+        }
+
+        // Route cell rendering by cell type
+        function renderNotebookCell(cell, index) {
+            const cellType = cell.cell_type || 'raw';
+            
+            if (cellType === 'markdown') {
+                return renderMarkdownCell(cell, index);
+            } else if (cellType === 'code') {
+                return renderCodeCell(cell, index);
+            } else if (cellType === 'raw') {
+                return renderRawCell(cell, index);
+            } else {
+                // Unknown cell type - render as raw
+                return renderRawCell(cell, index);
+            }
+        }
+
+        // Render markdown cell
+        function renderMarkdownCell(cell, index) {
+            const source = Array.isArray(cell.source) ? cell.source.join('') : cell.source || '';
+            const renderedContent = markdownToHtml(source);
+            
+            return `
+                <div class="notebook-cell notebook-cell-markdown" data-cell-index="${index}">
+                    <div class="notebook-cell-content">
+                        ${renderedContent}
+                    </div>
+                </div>
+            `;
+        }
+
+        // Render code cell
+        function renderCodeCell(cell, index) {
+            const source = Array.isArray(cell.source) ? cell.source.join('') : cell.source || '';
+            const executionCount = cell.execution_count;
+            const outputs = cell.outputs || [];
+            
+            // Determine execution badge text
+            const executionBadge = executionCount !== null && executionCount !== undefined
+                ? `In [${executionCount}]:`
+                : 'In [ ]:';
+            
+            let cellHtml = `
+                <div class="notebook-cell notebook-cell-code" data-cell-index="${index}">
+                    <div class="notebook-cell-input">
+                        <span class="execution-count">${executionBadge}</span>
+                        <pre class="notebook-code-block"><code class="language-python">${escapeHtml(source)}</code></pre>
+                    </div>
+            `;
+            
+            // Render outputs if cell was executed
+            if (outputs.length > 0 && executionCount !== null) {
+                cellHtml += '<div class="notebook-cell-outputs">';
+                outputs.forEach((output, outputIndex) => {
+                    cellHtml += renderCellOutput(output, outputIndex);
+                });
+                cellHtml += '</div>';
+            }
+            
+            cellHtml += '</div>';
+            return cellHtml;
+        }
+
+        // Render raw cell
+        function renderRawCell(cell, index) {
+            const source = Array.isArray(cell.source) ? cell.source.join('') : cell.source || '';
+            
+            return `
+                <div class="notebook-cell notebook-cell-raw" data-cell-index="${index}">
+                    <div class="notebook-cell-content">
+                        <pre class="notebook-raw-content">${escapeHtml(source)}</pre>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Render cell output with MIME type priority
+        function renderCellOutput(output, outputIndex) {
+            const outputType = output.output_type;
+            
+            if (outputType === 'display_data' || outputType === 'execute_result') {
+                return renderDisplayOutput(output, outputIndex);
+            } else if (outputType === 'stream') {
+                return renderStreamOutput(output, outputIndex);
+            } else if (outputType === 'error') {
+                return renderErrorOutput(output, outputIndex);
+            } else {
+                // Unknown output type
+                return `<div class="notebook-output notebook-output-unknown">Unknown output type: ${escapeHtml(outputType)}</div>`;
+            }
+        }
+
+        // Render display_data or execute_result output
+        function renderDisplayOutput(output, outputIndex) {
+            const data = output.data || {};
+            
+            // MIME type priority: image > HTML > text
+            if (data['image/png'] || data['image/jpeg']) {
+                return renderImageOutput(output, outputIndex);
+            } else if (data['text/html']) {
+                return renderHtmlOutput(output, outputIndex);
+            } else if (data['text/plain']) {
+                return renderTextOutput(output, outputIndex);
+            } else {
+                // No recognized MIME type
+                return `<div class="notebook-output">Unsupported output format</div>`;
+            }
+        }
+
+        // Render image output
+        function renderImageOutput(output, outputIndex) {
+            const data = output.data || {};
+            const imageMimeType = data['image/png'] ? 'image/png' : 'image/jpeg';
+            const imageData = data[imageMimeType];
+            
+            if (!imageData) return '';
+            
+            // Check size and truncate if needed (>1MB)
+            const estimatedSize = imageData.length * 0.75; // base64 is ~33% larger
+            const maxSize = 1024 * 1024; // 1MB
+            
+            if (estimatedSize > maxSize) {
+                const truncatedData = imageData.substring(0, Math.floor(100 * 1024 / 0.75));
+                return `
+                    <div class="notebook-output notebook-output-image">
+                        <img src="data:${imageMimeType};base64,${truncatedData}" 
+                             alt="Output image (truncated)" 
+                             loading="lazy" 
+                             style="max-width: 100%; height: auto;" />
+                        <div class="notebook-output-truncated">
+                            ⚠️ Image truncated (original size: ${(estimatedSize / 1024 / 1024).toFixed(2)}MB)
+                        </div>
+                    </div>
+                `;
+            }
+            
+            return `
+                <div class="notebook-output notebook-output-image">
+                    <img src="data:${imageMimeType};base64,${imageData}" 
+                         alt="Output image" 
+                         loading="lazy" 
+                         style="max-width: 100%; height: auto;" />
+                </div>
+            `;
+        }
+
+        // Render HTML output
+        function renderHtmlOutput(output, outputIndex) {
+            const data = output.data || {};
+            let htmlContent = Array.isArray(data['text/html']) 
+                ? data['text/html'].join('') 
+                : data['text/html'] || '';
+            
+            // Check size and truncate if needed (>1MB)
+            const contentSize = new Blob([htmlContent]).size;
+            const maxSize = 1024 * 1024; // 1MB
+            
+            if (contentSize > maxSize) {
+                const showMoreId = `show-more-html-${outputIndex}-${Date.now()}`;
+                const truncatedContent = htmlContent.substring(0, 100 * 1024);
+                return `
+                    <div class="notebook-output notebook-output-html">
+                        <div id="${showMoreId}-content">${truncatedContent}</div>
+                        <div class="notebook-output-truncated">
+                            ⚠️ Output truncated (${(contentSize / 1024 / 1024).toFixed(2)}MB). 
+                            <button class="show-more-btn" onclick="showFullHtmlOutput('${showMoreId}', ${JSON.stringify(htmlContent).replace(/'/g, "\\'")} )">
+                                Show More
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            return `
+                <div class="notebook-output notebook-output-html">
+                    ${htmlContent}
+                </div>
+            `;
+        }
+
+        // Render text output
+        function renderTextOutput(output, outputIndex) {
+            const data = output.data || {};
+            let textContent = Array.isArray(data['text/plain']) 
+                ? data['text/plain'].join('') 
+                : data['text/plain'] || '';
+            
+            // Check size and truncate if needed (>1MB)
+            const contentSize = new Blob([textContent]).size;
+            const maxSize = 1024 * 1024; // 1MB
+            
+            if (contentSize > maxSize) {
+                const showMoreId = `show-more-text-${outputIndex}-${Date.now()}`;
+                const truncatedContent = textContent.substring(0, 100 * 1024);
+                return `
+                    <div class="notebook-output notebook-output-text">
+                        <pre id="${showMoreId}-content">${escapeHtml(truncatedContent)}</pre>
+                        <div class="notebook-output-truncated">
+                            ⚠️ Output truncated (${(contentSize / 1024 / 1024).toFixed(2)}MB). 
+                            <button class="show-more-btn" onclick="showFullTextOutput('${showMoreId}', ${JSON.stringify(textContent)})">
+                                Show More
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            return `
+                <div class="notebook-output notebook-output-text">
+                    <pre>${escapeHtml(textContent)}</pre>
+                </div>
+            `;
+        }
+
+        // Render stream output (stdout/stderr)
+        function renderStreamOutput(output, outputIndex) {
+            const text = Array.isArray(output.text) ? output.text.join('') : output.text || '';
+            const streamName = output.name || 'stdout';
+            
+            // Check size and truncate if needed
+            const contentSize = new Blob([text]).size;
+            const maxSize = 1024 * 1024; // 1MB
+            
+            if (contentSize > maxSize) {
+                const showMoreId = `show-more-stream-${outputIndex}-${Date.now()}`;
+                const truncatedText = text.substring(0, 100 * 1024);
+                return `
+                    <div class="notebook-output notebook-output-stream notebook-output-stream-${streamName}">
+                        <pre id="${showMoreId}-content">${escapeHtml(truncatedText)}</pre>
+                        <div class="notebook-output-truncated">
+                            ⚠️ Output truncated (${(contentSize / 1024 / 1024).toFixed(2)}MB). 
+                            <button class="show-more-btn" onclick="showFullTextOutput('${showMoreId}', ${JSON.stringify(text)})">
+                                Show More
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            return `
+                <div class="notebook-output notebook-output-stream notebook-output-stream-${streamName}">
+                    <pre>${escapeHtml(text)}</pre>
+                </div>
+            `;
+        }
+
+        // Render error output
+        function renderErrorOutput(output, outputIndex) {
+            const ename = output.ename || 'Error';
+            const evalue = output.evalue || '';
+            const traceback = output.traceback || [];
+            
+            // Strip ANSI escape codes from traceback
+            const cleanTraceback = traceback.map(line => {
+                return line.replace(/\x1b\[[0-9;]*m/g, '');
+            }).join('\n');
+            
+            return `
+                <div class="notebook-output notebook-output-error">
+                    <div class="notebook-error-name">${escapeHtml(ename)}: ${escapeHtml(evalue)}</div>
+                    <pre class="notebook-error-traceback">${escapeHtml(cleanTraceback)}</pre>
+                </div>
+            `;
+        }
+
+        // Helper functions for "Show More" buttons
+        function showFullTextOutput(id, fullContent) {
+            const contentElement = document.getElementById(id + '-content');
+            if (contentElement) {
+                contentElement.textContent = fullContent;
+                contentElement.nextElementSibling.style.display = 'none';
+            }
+        }
+
+        function showFullHtmlOutput(id, fullContent) {
+            const contentElement = document.getElementById(id + '-content');
+            if (contentElement) {
+                contentElement.innerHTML = fullContent;
+                contentElement.nextElementSibling.style.display = 'none';
+            }
         }
 
         // Display audio documents
@@ -1061,6 +1439,16 @@
 
         // DOCX utility functions
         function downloadDocx(source) {
+            const link = document.createElement('a');
+            link.href = '{{ url_for("chat.get_document") }}?source=' + encodeURIComponent(source);
+            link.download = decodeURIComponent(source.split('/').pop());
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // Notebook utility functions
+        function downloadNotebook(source) {
             const link = document.createElement('a');
             link.href = '{{ url_for("chat.get_document") }}?source=' + encodeURIComponent(source);
             link.download = decodeURIComponent(source.split('/').pop());
@@ -1671,6 +2059,7 @@
                         <span class="browser-doc-filename">${doc.filename}</span>
                         <span class="browser-doc-path">${doc.path}</span>
                         ${doc.is_csv ? '<span class="doc-badge csv-badge">CSV</span>' : 
+                          doc.is_ipynb ? '<span class="doc-badge ipynb-badge">IPYNB</span>' :
                           doc.file_type ? `<span class="doc-badge">${doc.file_type.toUpperCase()}</span>` : ''}
                     </div>
                     <div class="browser-doc-actions">
@@ -1796,11 +2185,51 @@
             showNotification('Markdown downloaded', 'success');
         }
 
+        // Prism.js syntax highlighting loader (lazy load on first .ipynb view)
+        let prismLoaded = false;
+        async function loadPrismSyntaxHighlighting() {
+            if (prismLoaded) return;
+            
+            try {
+                // Load Prism.js core
+                await loadScript('https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js');
+                
+                // Load language components for Jupyter notebooks
+                await loadScript('https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-python.min.js');
+                await loadScript('https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-r.min.js');
+                await loadScript('https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-julia.min.js');
+                await loadScript('https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-markdown.min.js');
+                
+                // Load Prism.js theme CSS
+                const link = document.createElement('link');
+                link.rel = 'stylesheet';
+                link.href = 'https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css';
+                document.head.appendChild(link);
+                
+                prismLoaded = true;
+                console.log('Prism.js syntax highlighting loaded successfully');
+            } catch (error) {
+                console.error('Error loading Prism.js:', error);
+                throw error;
+            }
+        }
+
+        // Helper to load external scripts
+        function loadScript(src) {
+            return new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = src;
+                script.onload = resolve;
+                script.onerror = reject;
+                document.head.appendChild(script);
+            });
+        }
+
         // File upload functionality
         function openFileUpload() {
             const input = document.createElement('input');
             input.type = 'file';
-            input.accept = '.pdf,.txt,.md,.csv,.docx,.doc,.json,.xml,.html';
+            input.accept = '.pdf,.txt,.md,.csv,.docx,.doc,.json,.xml,.html,.ipynb';
             input.onchange = (e) => {
                 const file = e.target.files[0];
                 if (file) {
