@@ -8,7 +8,8 @@ A clean, modern AI-powered chat application with optional RAG (Retrieval-Augment
 - 🎙️ **Voice Input**: Record audio and automatically transcribe to text using Whisper
 - 🔍 **RAG Integration**: Optional context enhancement using external document retrieval
 - 🔧 **External Tools Integration**: Connect to specialized APIs (weather, quotes, calendar, etc.) for real-time data
-- 📄 **Document Viewer**: View and interact with various document types (PDF, CSV, DOCX, images, audio files, and more)
+- 📄 **Document Viewer**: View and interact with various document types (PDF, CSV, DOCX, images, audio files, Jupyter notebooks, and more)
+- 📓 **Jupyter Notebook Support**: View, download, and load .ipynb files with syntax-highlighted code cells, formatted markdown, and rendered outputs
 - 🎵 **Audio File Support**: Play audio files (.wav, .mp3, .m4a, .flac, .ogg) directly in the document viewer
 - 🗣️ **Voice Assistant API**: Full voice-to-voice assistant with audio transcription and TTS broadcast
 - 📅 **Calendar Integration**: Query your calendar with natural language

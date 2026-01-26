@@ -489,12 +489,14 @@ def browse_documents():
                 file_type = doc_path.split('.')[-1].lower() if '.' in doc_path else 'unknown'
             
             is_csv = file_type == 'csv'
+            is_ipynb = file_type == 'ipynb'
             
             enhanced_docs.append({
                 'path': doc_path,
                 'filename': filename,
                 'file_type': file_type,
                 'is_csv': is_csv,
+                'is_ipynb': is_ipynb,
                 'chunk_count': chunk_count
             })
         
