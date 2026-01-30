@@ -1141,6 +1141,7 @@ def voice_query():
             broadcast = request.form.get('broadcast', 'false').lower() == 'true'
             tts_speaker = request.form.get('speaker')
             tts_model = request.form.get('tts_model')
+            tts_engine = request.form.get('engine')
         else:
             data = request.get_json() or {}
             model = data.get('model', os.getenv("DEFAULT_MODEL", DEFAULT_MODEL))
@@ -1148,6 +1149,7 @@ def voice_query():
             broadcast = data.get('broadcast', False)
             tts_speaker = data.get('speaker')
             tts_model = data.get('tts_model')
+            tts_engine = data.get('engine')
         
         print(f"DEBUG: Voice query - Model: {model}, RAG: {use_rag}, Broadcast: {broadcast}")
         print(f"DEBUG: Query: {transcribed_text}")
@@ -1251,6 +1253,8 @@ def voice_query():
                     }
                     if tts_model:
                         tts_payload["model_name"] = tts_model
+                    if tts_engine:
+                        tts_payload["engine"] = tts_engine
                     
                     tts_response = requests.post(
                         tts_url,

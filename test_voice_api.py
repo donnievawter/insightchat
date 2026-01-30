@@ -18,7 +18,7 @@ import argparse
 import json
 import sys
 
-def test_voice_query(text=None, audio_file=None, model=None, use_rag=True, broadcast=False, speaker=None, tts_model=None, api_url="http://localhost:5030"):
+def test_voice_query(text=None, audio_file=None, model=None, use_rag=True, broadcast=False, speaker=None, tts_model=None, engine=None, api_url="http://localhost:5030"):
     """
     Test the /api/voice-query endpoint.
     
@@ -30,6 +30,7 @@ def test_voice_query(text=None, audio_file=None, model=None, use_rag=True, broad
         broadcast: Whether to broadcast response to TTS
         speaker: TTS speaker/media player (required if broadcast=True)
         tts_model: Optional TTS model name
+        engine: Optional TTS engine name
         api_url: Base URL of the API
     """
     endpoint = f"{api_url}/api/voice-query"
@@ -50,6 +51,8 @@ def test_voice_query(text=None, audio_file=None, model=None, use_rag=True, broad
                     data['speaker'] = speaker
                 if tts_model:
                     data['tts_model'] = tts_model
+                if engine:
+                    data['engine'] = engine
                 
                 response = requests.post(endpoint, files=files, data=data)
         else:
@@ -66,6 +69,8 @@ def test_voice_query(text=None, audio_file=None, model=None, use_rag=True, broad
                 payload['speaker'] = speaker
             if tts_model:
                 payload['tts_model'] = tts_model
+            if engine:
+                payload['engine'] = engine
             
             response = requests.post(endpoint, json=payload)
         
@@ -116,6 +121,7 @@ def main():
     parser.add_argument('--broadcast', action='store_true', help='Broadcast response to TTS')
     parser.add_argument('--speaker', type=str, help='TTS speaker/media player (e.g., media_player.bedoffice)')
     parser.add_argument('--tts-model', type=str, help='TTS model name (e.g., random)')
+    parser.add_argument('--engine', type=str, help='TTS engine name (optional)')
     parser.add_argument('--api-url', type=str, default='http://localhost:5030', 
                        help='API base URL (default: http://localhost:5030)')
     
@@ -135,6 +141,7 @@ def main():
         broadcast=args.broadcast,
         speaker=args.speaker,
         tts_model=args.tts_model,
+        engine=args.engine,
         api_url=args.api_url
     )
 
