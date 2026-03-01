@@ -35,7 +35,7 @@ def chat():
                 default_model = available_models[0]["name"]
         
         current_model = session.get("model", default_model)
-        current_use_repo_docs = session.get("use_repo_docs", False)
+        current_use_repo_docs = session.get("use_repo_docs", True)
         
         return render_template("chat.html", 
                              message_history=session["message_history"],
