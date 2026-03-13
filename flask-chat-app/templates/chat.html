@@ -1547,8 +1547,48 @@
             return isMarkdown;
         }
 
-        function markdownToHtml(markdown) {
+        // Helper function to resolve relative paths in markdown
+        function resolveMarkdownPath(imagePath, docSource) {
+            // If no document source provided or path is absolute/URL, return as-is
+            if (!docSource || imagePath.startsWith('http://') || imagePath.startsWith('https://') || imagePath.startsWith('/')) {
+                return imagePath;
+            }
+
+            // Extract the directory of the document source
+            const docDir = docSource.substring(0, docSource.lastIndexOf('/'));
+            
+            // Resolve relative path
+            let resolvedPath = docDir + '/' + imagePath;
+            
+            // Normalize path (handle ../ and ./)
+            const parts = resolvedPath.split('/');
+            const normalized = [];
+            
+            for (const part of parts) {
+                if (part === '..') {
+                    normalized.pop(); // Go up one directory
+                } else if (part !== '.' && part !== '') {
+                    normalized.push(part);
+                }
+            }
+            
+            return normalized.join('/');
+        }
+
+        function markdownToHtml(markdown, docSource) {
             let html = markdown;
+
+            // Images (must process before links since image syntax is similar)
+            // Match: ![alt text](image path)
+            html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, function (match, alt, imagePath) {
+                // Resolve relative path based on document source
+                const resolvedPath = resolveMarkdownPath(imagePath.trim(), docSource);
+                
+                // Convert to backend URL using the /document route
+                const imageUrl = '{{ url_for("chat.get_document") }}?source=' + encodeURIComponent(resolvedPath);
+                
+                return `<img src="${imageUrl}" alt="${escapeHtml(alt)}" style="max-width: 100%; height: auto; border-radius: 6px; margin: 1em 0;" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';" /><div style="display: none; padding: 10px; background: #2d1b20; border: 1px solid #da3633; border-radius: 6px; color: #f97583; margin: 1em 0;"><strong>⚠️ Image not found:</strong> ${escapeHtml(resolvedPath)}</div>`;
+            });
 
             // Tables (must come before most other processing)
             html = html.replace(/^\|(.+)\|\s*$/gm, function (match) {
@@ -1602,7 +1642,7 @@
             // Inline code
             html = html.replace(/`([^`]+)`/g, '<code class="inline-code">$1</code>');
 
-            // Links
+            // Links (must come after images)
             html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
 
             // Horizontal rules
@@ -1638,6 +1678,8 @@
             html = html.replace(/(<\/pre>)<\/p>/g, '$1');
             html = html.replace(/<p>(<table)/g, '$1');
             html = html.replace(/(<\/table>)<\/p>/g, '$1');
+            html = html.replace(/<p>(<img)/g, '$1');
+            html = html.replace(/(<\/div>)<\/p>/g, '$1');
 
             return html;
         }
@@ -1703,7 +1745,7 @@
                                     </div>
                                 </div>
                                 <div class="markdown-content">
-                                    ${markdownToHtml(content)}
+                                    ${markdownToHtml(content, source)}
                                 </div>
                             </div>
                         `;
@@ -1804,7 +1846,7 @@
                     const newWindow = window.open('', '_blank');
                     if (newWindow) {
                         const fileName = decodeURIComponent(source.split('/').pop());
-                        const renderedHtml = markdownToHtml(markdownContent);
+                        const renderedHtml = markdownToHtml(markdownContent, source);
 
                         newWindow.document.write(`
                             <!DOCTYPE html>
