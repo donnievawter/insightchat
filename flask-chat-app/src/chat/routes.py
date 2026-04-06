@@ -153,15 +153,13 @@ def chat():
                     # We'll fetch the same documents again but skip RAG search
                     break
         
-        # Fetch context from RAG if requested (but skip if tools already handled the query)
+        # Fetch context from RAG if requested
+        # Note: RAG runs independently of tools - both can provide useful context
         context_text = None
         rag_chunks = []
         sources_found = []  # Initialize sources list
         
-        # Skip RAG if tools successfully handled the query
-        tools_handled_query = bool(tool_results and any(r.get('success') for r in tool_results))
-        
-        if use_repo_docs and not tools_handled_query:
+        if use_repo_docs:
             k = DEFAULT_RAG_CHUNKS  # Default number of chunks
             rag_api_url = os.getenv("RAG_API_URL")
             print(f"DEBUG: RAG enabled, API URL: {rag_api_url}")  # Debug log
@@ -297,36 +295,9 @@ def chat():
                 print("DEBUG: RAG not enabled and no tool context")
                 temp_history = session["message_history"]
             
-            # Get available documents for Load button functionality
-            rag_api_url = os.getenv("RAG_API_URL")
-            if rag_api_url:
-                try:
-                    # Get available documents list
-                    response = requests.get(f"{rag_api_url}/documents")
-                    if response.status_code == 200:
-                        available_docs = response.json().get('documents', [])
-                        for doc in available_docs:
-                            # Handle both old format (string) and new format (dict)
-                            if isinstance(doc, dict):
-                                doc_path = doc.get('source', '')
-                                file_type = doc.get('file_type', '')
-                                filename = doc_path.split('/')[-1] if doc_path else ''
-                            else:
-                                # Old format - doc is a string path
-                                doc_path = doc
-                                filename = doc.split('/')[-1]
-                                file_type = doc.split('.')[-1].lower() if '.' in doc else ''
-                            
-                            is_csv = file_type == 'csv'
-                            sources_found.append({
-                                'path': doc_path,
-                                'filename': filename,
-                                'is_csv': is_csv,
-                                'file_type': file_type
-                            })
-                        print(f"DEBUG: Found {len(sources_found)} available documents for loading")
-                except requests.RequestException as e:
-                    print(f"DEBUG: Could not fetch available documents: {e}")
+            # Don't fetch all available documents when RAG is disabled
+            # This was causing confusion by showing ~300 irrelevant documents for every message
+            # Sources should only be shown when RAG actually returns relevant results
 
         # Get response from Ollama
         try:
@@ -1178,10 +1149,10 @@ def voice_query():
                 print(f"DEBUG: Tools executed: {len(tool_results)}, successful: {len(successful_tools)}")
         
         # === RAG PROCESSING ===
+        # Note: RAG runs independently of tools - both can provide useful context
         context_text = None
-        tools_handled_query = bool(tool_results and any(r.get('success') for r in tool_results))
         
-        if use_rag and not tools_handled_query:
+        if use_rag:
             rag_api_url = os.getenv("RAG_API_URL")
             if rag_api_url:
                 print(f"DEBUG: Fetching RAG context for voice query")
@@ -1215,7 +1186,7 @@ def voice_query():
         if tool_context:
             combined_context += "\n\n" + tool_context
         
-        if context_text and not tools_handled_query:
+        if context_text:
             combined_context += "\n\n" + context_text
         
         # Prepare temp history with combined context (voice prompt + tool/RAG data)
