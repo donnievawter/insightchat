@@ -18,15 +18,18 @@ RUN pip install --no-cache-dir uv
 # Create app directory
 WORKDIR /app
 
-# Copy and install dependencies
-COPY pyproject.toml uv.lock ./
+# Copy calendar-intelligence-standalone first (since it's a dependency)
+COPY calendar-intelligence-standalone /app/calendar-intelligence-standalone
+
+# Copy insightchat dependencies
+COPY insightchat/pyproject.toml insightchat/uv.lock ./
 
 # Install dependencies with cache mount
 RUN --mount=type=cache,target=/opt/uv-cache,uid=1000,gid=1000 \
     uv sync --frozen --no-dev
 
-# Copy application code
-COPY . .
+# Copy insightchat application code
+COPY insightchat/ .
 
 # Create non-root user with home directory and uv directories
 RUN groupadd -r appuser && useradd -r -g appuser -m appuser && \

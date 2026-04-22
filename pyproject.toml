@@ -22,4 +22,4 @@ dev = [
 ]
 
 [tool.uv.sources]
-calendar-intelligence = { git = "https://github.com/donnievawter/calendar-intelligence.git" }
+calendar-intelligence = { path = "./calendar-intelligence-standalone", editable = true }
