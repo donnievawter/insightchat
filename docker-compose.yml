@@ -1,8 +1,8 @@
 services:
   insightchat:
     build:
-      context: ..
-      dockerfile: insightchat/Dockerfile
+      context: .
+      dockerfile: Dockerfile
     container_name: insightchat
     ports:
       - "5030:5030"

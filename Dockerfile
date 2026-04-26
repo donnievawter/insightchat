@@ -18,9 +18,6 @@ RUN pip install --no-cache-dir uv
 # Create app directory
 WORKDIR /app
 
-# Copy calendar-intelligence-standalone first (since it's a dependency)
-COPY calendar-intelligence-standalone /app/calendar-intelligence-standalone
-
 # Copy insightchat dependencies
 COPY insightchat/pyproject.toml insightchat/uv.lock ./
 
