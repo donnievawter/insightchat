@@ -18,15 +18,15 @@ RUN pip install --no-cache-dir uv
 # Create app directory
 WORKDIR /app
 
-# Copy insightchat dependencies
-COPY insightchat/pyproject.toml insightchat/uv.lock ./
+# Copy dependencies
+COPY pyproject.toml uv.lock ./
 
 # Install dependencies with cache mount
 RUN --mount=type=cache,target=/opt/uv-cache,uid=1000,gid=1000 \
     uv sync --frozen --no-dev
 
-# Copy insightchat application code
-COPY insightchat/ .
+# Copy application code
+COPY . .
 
 # Create non-root user with home directory and uv directories
 RUN groupadd -r appuser && useradd -r -g appuser -m appuser && \
