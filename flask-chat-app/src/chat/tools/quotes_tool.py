@@ -5,6 +5,7 @@ This tool provides inspirational quotes and content from RSS feeds.
 Currently a placeholder - implement based on your RSS quotes API structure.
 """
 
+import re
 from typing import Dict, Any, List
 import requests
 import logging
@@ -59,10 +60,13 @@ class QuotesTool(BaseTool):
         
         query_lower = query.lower()
         
-        # Check for intent keywords
+        # Check for intent keywords using word-boundary matching
         keywords = self.get_intent_keywords()
         for keyword in keywords:
-            if keyword in query_lower:
+            # Use word-boundary matching to avoid false positives
+            # (e.g., 'quote' should not match 'unquote' or 'quotent')
+            pattern = r'\b' + re.escape(keyword) + r'\b'
+            if re.search(pattern, query_lower):
                 logger.info(f"Quotes tool matched keyword: {keyword}")
                 return True
         
