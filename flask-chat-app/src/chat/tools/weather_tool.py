@@ -74,6 +74,7 @@ class WeatherTool(BaseTool):
             return False
         
         query_lower = query.lower()
+        logger.info(f"🔍 [DEBUG] WeatherTool.can_handle() checking query: {query_lower[:200]}...")
         
         # Check for intent keywords
         keywords = self.get_intent_keywords()
@@ -81,13 +82,17 @@ class WeatherTool(BaseTool):
             # Use regex for pattern-based keywords
             if '.*' in keyword:
                 if re.search(keyword, query_lower):
-                    logger.info(f"Weather tool matched pattern: {keyword}")
+                    logger.info(f"✓ Weather tool matched pattern: '{keyword}' in query")
                     return True
-            # Direct string match for simple keywords
-            elif keyword in query_lower:
-                logger.info(f"Weather tool matched keyword: {keyword}")
-                return True
+            # Use word boundary matching for simple keywords to avoid false positives
+            # (e.g., 'hot' should not match 'hotel')
+            else:
+                pattern = r'\b' + re.escape(keyword) + r'\b'
+                if re.search(pattern, query_lower):
+                    logger.info(f"✓ Weather tool matched keyword: '{keyword}' in query")
+                    return True
         
+        logger.info(f"✗ Weather tool did NOT match query")
         return False
     
     async def execute(self, query: str, **kwargs) -> Dict[str, Any]:
