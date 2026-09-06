@@ -50,7 +50,9 @@ def fetch_repo_chunks(prompt, k=None, rag_api_url=None, return_chunks=False):
         payload = {"prompt": prompt, "k": k}
         print(f"DEBUG: Making RAG request to {url} with payload: {payload}")
         
-        resp = requests.post(url, json=payload, timeout=6)
+        # Use configurable timeout for RAG queries (default 6 seconds)
+        rag_timeout = int(os.getenv("RAG_TIMEOUT", "6"))
+        resp = requests.post(url, json=payload, timeout=rag_timeout)
         print(f"DEBUG: RAG response status: {resp.status_code}")
         
         resp.raise_for_status()
@@ -137,7 +139,9 @@ def fetch_document_content(source, rag_api_url=None):
         print(f"DEBUG: Payload: {payload}")
         print(f"DEBUG: Full URL: {url}")
         
-        resp = requests.post(url, json=payload, timeout=10)
+        # Use configurable timeout for document fetches (default 10 seconds)
+        doc_timeout = int(os.getenv("RAG_DOCUMENT_TIMEOUT", "10"))
+        resp = requests.post(url, json=payload, timeout=doc_timeout)
         print(f"DEBUG: Document response status: {resp.status_code}")
         print(f"DEBUG: Document response headers: {dict(resp.headers)}")
         
